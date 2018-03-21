@@ -38,7 +38,10 @@ def getTracker():
     
 
 def evalFile(filename, display = False):
-    return cachedObject(filename+tracker_type, lambda: _evalFile(filename, display))
+    if display:
+        return _evalFile(filename, display)
+    else:
+        return cachedObject(filename+tracker_type, lambda: _evalFile(filename, display))
 
 def _evalFile(filename, display = False):
  
@@ -134,4 +137,4 @@ def _evalFile(filename, display = False):
         
 if __name__ == '__main__' :        
     #evalFile("Basketball/match5-c0")
-    print evalFile("Laboratory/6p-c0",True)
+    evalFile("Laboratory/6p-c0",True)
