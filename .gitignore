@@ -1,2 +1,3 @@
 epfl_scripts/_cache_
 **/*.pyc
+.idea

@@ -24,31 +24,31 @@
 ###########################
 
 
-import csv #read coma separated value file
-import os #file operations
+import csv  # read coma separated value file
+import os  # file operations
 
 groundtruth_folder = "/home/jaguilar/Abel/epfl/dataset/merayxu-multiview-object-tracking-dataset-d2990e227c57/EPFL/"
+
 
 def getFilenames():
     filenames = []
     for path, subdirs, files in os.walk(groundtruth_folder):
         for name in files:
-            filenames.append( os.path.join(os.path.relpath(path, groundtruth_folder),os.path.splitext(name)[0]) )
+            filenames.append(os.path.join(os.path.relpath(path, groundtruth_folder), os.path.splitext(name)[0]))
     return filenames
 
 
 def parseFile(filename):
-    return _parseFile(groundtruth_folder+filename+".txt")
+    return _parseFile(groundtruth_folder + filename + ".txt")
 
 
 def _parseFile(path):
-
     track_ids = set()
 
-    #create data for each frame
+    # create data for each frame
     reader = csv.reader(open(path), delimiter=' ')
     data = {}
     for track_id, xmin, ymin, xmax, ymax, frame_number, lost, occluded, generated, label in reader:
-        data.setdefault(int(frame_number), {})[int(track_id)] = [int(xmin), int(ymin), int(xmax), int(ymax), lost=='1', occluded=='1', generated=='1', label]
+        data.setdefault(int(frame_number), {})[int(track_id)] = [int(xmin), int(ymin), int(xmax), int(ymax), lost == '1', occluded == '1', generated == '1', label]
         track_ids.add(int(track_id))
     return track_ids, data
