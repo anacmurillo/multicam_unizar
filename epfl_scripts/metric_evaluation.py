@@ -1,16 +1,18 @@
 import math
+import matplotlib.colors as pltcolors
+import matplotlib.patches as pltpatches
 import matplotlib.pyplot as plt
 
-from evaluator import evalFile, getTrackerName
+from evaluator import evalFile
 from groundTruthParser import parseFile
 
-precision_range = 100
+threshold_range = 100
 
 
-def evaluate(filename):
+def evaluate(filename, tracker):
     track_ids, data_groundTruth = parseFile(filename)
 
-    data_tracker, n_frames = evalFile(filename)
+    data_tracker, n_frames = evalFile(filename, False, tracker)
 
     motp_total, motp_ids = motp(track_ids, n_frames, data_groundTruth, data_tracker)
     print "MOTP: total =", motp_total
@@ -22,25 +24,39 @@ def evaluate(filename):
     for id in track_ids:
         print "    ", id, "=", mota_ids[id]
 
-    for id in track_ids:
-        x = []
-        y = []
-        c = []
-        for threshold in [i * 1. / precision_range for i in xrange(0, precision_range + 1)]:
-            precision, recall = precision_recall(id, n_frames, data_groundTruth, data_tracker, threshold)
-            y.append(precision)
-            x.append(recall)
-            c.append(threshold)
-            # plt.annotate(threshold, xy=(recall,precision))#,xytext=(0, threshold))
-
-        scttr = plt.scatter(x, y, c=c, edgecolors='none')
-    plt.colorbar(scttr)
-    plt.xlabel('recall')
-    plt.xlim([0, 1])
-    plt.ylabel('precision')
-    plt.ylim([0, 1])
-    plt.title('precision-recall - ' + filename + ' - ' + getTrackerName())
+    colors = ['black', 'purple', 'blue', 'red', 'green']
+    labels = ['Not present', 'Tracker found ghost', 'Tracker didn\'t found', 'Missed', 'Found']
+    colormap = pltcolors.LinearSegmentedColormap.from_list('name', colors)
+    binaries = getTrackType(track_ids, n_frames, data_groundTruth, data_tracker)
+    for index, id in enumerate(track_ids):
+        length = len(binaries[id])
+        scttr = plt.scatter(range(length), [index] * length, s=50, c=binaries[id], marker='|', edgecolors='none', cmap=colormap)
+    legend = []
+    for i in range(len(labels)):
+        legend.append(pltpatches.Rectangle((0, 0), 1, 2, fc=colors[i]))
+    plt.legend(legend, labels, bbox_to_anchor=(0.5, 1), loc='upper center', ncol=3, fontsize=10)
+    plt.xlim([0, length])
+    plt.title('Detection - ' + filename + ' - ' + tracker)
     plt.show()
+
+    # for id in track_ids:
+    #     x = []
+    #     y = []
+    #     c = []
+    #     for threshold in [i * 1. / threshold_range for i in xrange(0, threshold_range + 1)]:
+    #         precision, recall = precision_recall(id, n_frames, data_groundTruth, data_tracker, threshold)
+    #         y.append(precision)
+    #         x.append(recall)
+    #         c.append(threshold)
+    #
+    #     scttr = plt.scatter(x, y, c=c, edgecolors='none')
+    # plt.colorbar(scttr)
+    # plt.xlabel('recall')
+    # plt.xlim([0, 1])
+    # plt.ylabel('precision')
+    # plt.ylim([0, 1])
+    # plt.title('precision-recall - ' + filename + ' - ' + tracker)
+    # plt.show()
 
 
 def precision_recall(id, frames, groundtruth, tracker, threshold):
@@ -65,6 +81,7 @@ def precision_recall(id, frames, groundtruth, tracker, threshold):
                 true_positive += 1
             else:
                 false_positive += 1  # false_positive: decidido (el tracker ha encontrado algo, pero esta mal)
+                false_negative += 1
 
     # print true_negative, false_positive, false_negative, true_positive
 
@@ -89,14 +106,14 @@ def mota(ids, frames, groundtruth, tracker):
                 gt += 1
 
             if bbox_gt is None and bbox_tr is None:
-                None
+                pass
             elif bbox_gt is None and bbox_tr is not None:
                 fpt += 1
             elif bbox_gt is not None and bbox_tr is None:
                 mt += 1
             else:
                 if getSimilarity(bbox_gt, bbox_tr) >= 0.5:  # magic number, consider change with distance
-                    None
+                    pass
                 else:
                     mme += 1
         persons[id] = 1. - (mt + fpt + mme) / gt
@@ -129,6 +146,29 @@ def motp(ids, frames, groundtruth, tracker):
     return total[0] / total[1], persons
 
 
+def getTrackType(ids, frames, groundtruth, tracker):
+    binaries = {}
+
+    for id in ids:
+        binary = []  # type of each frame
+        for frame in range(frames):
+            xmin, ymin, xmax, ymax, lost, occluded, generated, label = groundtruth[frame][id]
+            bbox_gt = None if lost else [xmin, ymin, xmax, ymax]
+            bbox_tr = tracker[frame].get(id, None)
+
+            if bbox_gt is None and bbox_tr is None:
+                binary.append(-3)
+            elif bbox_gt is None and bbox_tr is not None:
+                binary.append(-2)
+            elif bbox_gt is not None and bbox_tr is None:
+                binary.append(-1)
+            else:
+                binary.append(getSimilarity(bbox_gt, bbox_tr))
+        binaries[id] = binary
+
+    return binaries
+
+
 def getSimilarity(boxA, boxB):
     intersection = f_area([max(boxA[0], boxB[0]), max(boxA[1], boxB[1]), min(boxA[2], boxB[2]), min(boxA[3], boxB[3])])
 
@@ -154,7 +194,8 @@ def f_euclidian(a, b):
 
 
 if __name__ == '__main__':
-    evaluate("Laboratory/6p-c0")
+    evaluate("Laboratory/6p-c0", 'BOOSTING')
+    evaluate("Laboratory/6p-c0", 'KCF')
     # evaluate("Basketball/match5-c2")
 
     # for filename in getFilenames():

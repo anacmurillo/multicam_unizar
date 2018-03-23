@@ -8,18 +8,15 @@ from groundTruthParser import parseFile, getVideo
 
 WIN_NAME = "Tracking"
 
-(major_ver, minor_ver, subminor_ver) = cv2.__version__.split('.')
-
-tracker_types = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW']  # , 'GOTURN' makes error
-tracker_type = tracker_types[2]  # los buenos son BOOSTING [0] y KCF [2]
+TRACKER_TYPES = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW']  # , 'GOTURN' makes error
 
 
-def getTrackerName():
-    return tracker_type
+def getTrackers():
+    return TRACKER_TYPES
 
 
-def getTracker():
-    if int(minor_ver) < 3:
+def _getTracker(tracker_type):
+    if int(cv2.__version__.split('.')[1]) < 3:
         tracker = cv2.Tracker_create(tracker_type)
     else:
         if tracker_type == 'BOOSTING':
@@ -39,14 +36,14 @@ def getTracker():
     return tracker
 
 
-def evalFile(filename, display=False):
+def evalFile(filename, display=False, tracker_type='BOOSTING'):
     if display:
-        return _evalFile(filename, display)
+        return _evalFile(filename, display, tracker_type)
     else:
         return cachedObject(filename + tracker_type, lambda: _evalFile(filename, display))
 
 
-def _evalFile(filename, display=False):
+def _evalFile(filename, display=False, tracker_type='BOOSTING'):
     # parse groundtruth
     track_ids, data = parseFile(filename)
 
@@ -81,7 +78,7 @@ def _evalFile(filename, display=False):
                 xmin, ymin, xmax, ymax, lost, occluded, generated, label = data[frame_index][id]
                 if not lost:
                     # initialize tracker
-                    tracker = getTracker()
+                    tracker = _getTracker()
                     bbox = (xmin, ymin, xmax - xmin, ymax - ymin)
                     if tracker.init(frame, bbox):
                         print "initialized tracker", tracker_type, "for person", id, "correctly"
