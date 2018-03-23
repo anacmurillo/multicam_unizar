@@ -4,15 +4,14 @@ import cv2
 
 from cache import cachedObject
 from colorUtility import getColors
-from groundTruthParser import parseFile
+from groundTruthParser import parseFile, getVideo
+
+WIN_NAME = "Tracking"
 
 (major_ver, minor_ver, subminor_ver) = cv2.__version__.split('.')
 
-# settings
-video_folder = "/home/jaguilar/Abel/epfl/dataset/CVLAB/"
-
 tracker_types = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW']  # , 'GOTURN' makes error
-tracker_type = tracker_types[4]
+tracker_type = tracker_types[2]  # los buenos son BOOSTING [0] y KCF [2]
 
 
 def getTrackerName():
@@ -36,7 +35,7 @@ def getTracker():
         elif tracker_type == 'GOTURN':
             tracker = cv2.TrackerGOTURN_create()
         else:
-            raise LookupError("Invalid tracker name: "+tracker_type)
+            raise LookupError("Invalid tracker name: " + tracker_type)
     return tracker
 
 
@@ -57,7 +56,7 @@ def _evalFile(filename, display=False):
         trackers[id] = None
 
     # Read video
-    video = cv2.VideoCapture(video_folder + filename + ".avi")
+    video = getVideo(filename)
 
     # Exit if video not opened.
     if not video.isOpened():
@@ -74,11 +73,7 @@ def _evalFile(filename, display=False):
     data_detected = {}
 
     frame_index = 0
-    while True:
-        # Read a new frame
-        ok, frame = video.read()
-        if not ok:
-            break
+    while ok:
 
         # parse trackers
         for id in track_ids:
@@ -109,24 +104,33 @@ def _evalFile(filename, display=False):
                     data_detected[frame_index][id] = [p1[0], p1[1], p2[0], p2[1]];  # xmin, ymin, xmax, ymax
                     if display:
                         cv2.rectangle(frame, p1, p2, color, 2, 1)
-                        cv2.putText(frame, str(id), p1, cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1);
+                        cv2.putText(frame, str(id), p1, cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
                 else:
                     # Tracking failure
                     # cv2.putText(frame, "Tracking failure detected", (100,80), cv2.FONT_HERSHEY_SIMPLEX, 0.75,(0,0,255),2)
-                    None
+                    pass
 
         if display:
             # Display result
-            cv2.imshow("Tracking", frame)
+            cv2.imshow(WIN_NAME, frame)
 
             # Exit if ESC pressed
             k = cv2.waitKey(1) & 0xff
-            if k == 27: break
+            if k == 27:
+                frame_index += 1
+                break
         else:
             sys.stdout.write("\r" + str(frame_index) + " ")
             sys.stdout.flush()
+
+        # Read a new frame
+        ok, frame = video.read()
         frame_index += 1
+
     print ""
+    if display:
+        cv2.destroyWindow(WIN_NAME)
+    video.release()
 
     return data_detected, frame_index
 

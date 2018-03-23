@@ -27,7 +27,11 @@
 import csv  # read coma separated value file
 import os  # file operations
 
+import cv2  # opencv
+
 groundtruth_folder = "/home/jaguilar/Abel/epfl/dataset/merayxu-multiview-object-tracking-dataset-d2990e227c57/EPFL/"
+
+video_folder = "/home/jaguilar/Abel/epfl/dataset/CVLAB/"
 
 
 def getFilenames():
@@ -36,6 +40,10 @@ def getFilenames():
         for name in files:
             filenames.append(os.path.join(os.path.relpath(path, groundtruth_folder), os.path.splitext(name)[0]))
     return filenames
+
+
+def getVideo(filename):
+    return cv2.VideoCapture(video_folder + filename + ".avi")
 
 
 def parseFile(filename):

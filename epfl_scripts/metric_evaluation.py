@@ -21,7 +21,6 @@ def evaluate(filename):
     print "MOTA: total =", mota_total
     for id in track_ids:
         print "    ", id, "=", mota_ids[id]
-    plt.colorbar
 
     for id in track_ids:
         x = []
