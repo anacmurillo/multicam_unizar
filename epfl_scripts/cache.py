@@ -96,10 +96,10 @@ def checkFolder():
 
 def convertFilename(name):
     """
-    Returns a valid cache filename from the input name
+    Returns a valid cache path file from the input name
     Replaces characteres not valid for filenames with "_" and appends the extension ".pkl"
     :param name: the name to convert
-    :return: the converted name (valid for cache file)
+    :return: the converted path file (valid for cache file)
     """
     return savedFolder + "".join(x if x.isalnum() else "_" for x in name) + ".pkl"
 

@@ -2,13 +2,15 @@
 Generates a video showing both the dataset and the result of the tracker with colors
 """
 
+import os
+
 import cv2
 
 from colorUtility import getColors
-from evaluator import evalFile
-from groundTruthParser import parseFile, getVideo
+from evaluator import evalFile, getTrackers
+from groundTruthParser import parseFile, getVideo, getFilenames
 
-FOLDER = "/videos/"
+FOLDER = "videos/"
 
 
 def generateVideo(filename, tracker):
@@ -22,9 +24,18 @@ def generateVideo(filename, tracker):
     n_frames, data_tracker = evalFile(filename, tracker)
     colors_list = getColors(len(track_ids))
 
-    # initialize video output
+    # initialize video input
     video_in = getVideo(filename)
-    video_out = cv2.VideoWriter(FOLDER+filename+"/"+tracker+'avi', cv2.VideoWriter_fourcc(*'XVID'), 25.0, (int(video_in.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_in.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+
+    # initialize video output
+    if not os.path.exists(os.path.dirname(FOLDER)):
+        try:
+            os.makedirs(os.path.dirname(FOLDER))
+        except OSError as exc:  # Guard against race condition
+            import errno
+            if exc.errno != errno.EEXIST:
+                raise
+    video_out = cv2.VideoWriter(FOLDER + "".join(x if x.isalnum() else "_" for x in filename+"_"+tracker) + '.avi', cv2.VideoWriter_fourcc(*'XVID'), 25.0, (int(video_in.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_in.get(cv2.CAP_PROP_FRAME_HEIGHT))))
 
     print "Generating..."
 
@@ -87,3 +98,16 @@ def drawLineBetween(frame, bboxA, bboxB, color):
 if __name__ == '__main__':
     generateVideo("Laboratory/6p-c0", 'BOOSTING')
 
+    # generateAll()
+
+
+def generateAll():
+    for filename in getFilenames():
+        for tracker in getTrackers():
+
+            try:
+                print "\n\n\n\n\n\n\n"
+                print "evaluating", filename, tracker
+                generateVideo(filename, tracker)
+            except BaseException as error:
+                print('An exception occurred: {}'.format(error))
