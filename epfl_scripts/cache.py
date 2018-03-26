@@ -1,5 +1,12 @@
 """
-Cache system implemented.
+Implementation of cache to functions.
+
+normal usage:
+
+@cache_function("foo_{0}")
+def foo(bar):
+    #something
+
 """
 import os
 import pickle
@@ -7,17 +14,19 @@ import pickle
 savedFolder = "_cache_/"
 
 
-def cache_decorate(name, forceLoad=False):
+def cache_function(name, forceLoad=False):
     """
     Decorator to mark functions as cached under a name.
     The name is formatted {.format()} with the function parameters, to allow parameters-dependent caches
-    Examples:   cache_decorate("mycache") will store the cache under 'mycache'
-                cache_decorate("{0}_cache") will store foo(1) under '0_cache', foo('s') under 's_cache', and so on.
+    If the name is already cached, the value is returned without evaluating the function.
+    If the name is not cached OR forceload=True, the function is evaluated, saved and returned
+
+    Examples:   cache_function("mycache") will store the cache under 'mycache'
+                cache_function("{0}_cache") will store foo(1) under '0_cache', foo('s') under 's_cache', and so on.
     """
 
     def func_decorator(func):
         def func_wrapper(*args, **kwargs):
-            print(name.format(*args, **kwargs))
             return cachedObject(name.format(*args, **kwargs), lambda: func(*args, **kwargs), forceLoad)
 
         return func_wrapper
@@ -73,6 +82,9 @@ def deleteCache(name):
 
 
 def checkFolder():
+    """
+    checks if the cache folder exists, if not otherwise creates it
+    """
     if not os.path.exists(os.path.dirname(savedFolder)):
         try:
             os.makedirs(os.path.dirname(savedFolder))
@@ -83,10 +95,19 @@ def checkFolder():
 
 
 def convertFilename(name):
+    """
+    Returns a valid cache filename from the input name
+    Replaces characteres not valid for filenames with "_" and appends the extension ".pkl"
+    :param name: the name to convert
+    :return: the converted name (valid for cache file)
+    """
     return savedFolder + "".join(x if x.isalnum() else "_" for x in name) + ".pkl"
 
 
 if __name__ == '__main__':
+    """
+    Tests
+    """
     print "Testing functionality:"
 
     print
@@ -140,7 +161,7 @@ if __name__ == '__main__':
     deleteCache("_test_")
 
 
-    @cache_decorate("_test_")
+    @cache_function("_test_")
     def awesomeFunction(a, b):
         print "awesome function evaluated"
         return a * b

@@ -1,8 +1,18 @@
+"""
+Evaluates one of the available trackers on a dataset filename.
+
+normal usage:
+
+filename = # get valid filename from groundTruthParser
+for tracker in getTrackers():
+    n_frames, data = evalFile(filename, tracker):
+    # do something
+"""
 import sys
 
 import cv2
 
-from cache import cache_decorate
+from cache import cache_function
 from colorUtility import getColors
 from groundTruthParser import parseFile, getVideo
 
@@ -12,10 +22,44 @@ TRACKER_TYPES = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW']  # , 'GOTURN' ma
 
 
 def getTrackers():
+    """
+    Returns available trackers that can be used in the evalFile function
+    :return: list of trackers (strings)
+    """
     return TRACKER_TYPES
 
 
+@cache_function("{0}_{1}")
+def evalFile(filename, tracker_type):
+    """
+    Returns the evaluation of the selected tracker on the specified filename.
+    Cached function, can return value inmediately or take minutes
+    :param filename: filename of the file to evaluate
+    :param tracker_type: tracker to use
+    :return: (n_frames, data) where
+        n_frames: number of frames evaluated
+        data: dictionary, frame->frame_info
+            -keys: each frame number
+            -values: dictionary, track_id->data
+                -keys: each track_id from track_ids
+                -values: list with the folowing information: xmin, ymin, xmax, ymax
+                    xmin: The top left x-coordinate of the bounding box.
+                    ymin: The top left y-coordinate of the bounding box.
+                    xmax: The bottom right x-coordinate of the bounding box.
+                    ymax: The bottom right y-coordinate of the bounding box.
+    (example {0: {0: [0,0,1,1], 1: [0,0,1,1]}, 1: {0: [0,0,1,1], 1: [0,0,1,1]}})
+    """
+    return _evalFile(filename, tracker_type, False)
+
+
+################## internal #######################3
+
+
 def _getTracker(tracker_type):
+    """
+    returns the cv2 tracker of the specified type
+    throws error if invalid type
+    """
     if int(cv2.__version__.split('.')[1]) < 3:
         tracker = cv2.Tracker_create(tracker_type)
     else:
@@ -36,12 +80,11 @@ def _getTracker(tracker_type):
     return tracker
 
 
-@cache_decorate("{0}{1}")
-def evalFile(filename, tracker_type='BOOSTING'):
-    return _evalFile(filename, False, tracker_type)
-
-
-def _evalFile(filename, display=True, tracker_type='BOOSTING'):
+def _evalFile(filename, tracker_type, display=True):
+    """
+    Evaluates the tracker, returns the dataset (check evalFile)
+    if display=True the evaluation is shown live
+    """
     # parse groundtruth
     track_ids, data = parseFile(filename)
 
@@ -96,7 +139,7 @@ def _evalFile(filename, display=True, tracker_type='BOOSTING'):
                     # Tracking success
                     p1 = (int(bbox[0]), int(bbox[1]))
                     p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
-                    data_detected[frame_index][id] = [p1[0], p1[1], p2[0], p2[1]];  # xmin, ymin, xmax, ymax
+                    data_detected[frame_index][id] = [p1[0], p1[1], p2[0], p2[1]]  # xmin, ymin, xmax, ymax
                     if display:
                         cv2.rectangle(frame, p1, p2, color, 2, 1)
                         cv2.putText(frame, str(id), p1, cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
@@ -127,9 +170,9 @@ def _evalFile(filename, display=True, tracker_type='BOOSTING'):
         cv2.destroyWindow(WIN_NAME)
     video.release()
 
-    return data_detected, frame_index
+    return frame_index, data_detected
 
 
 if __name__ == '__main__':
     # evalFile("Basketball/match5-c0")
-    _evalFile("Laboratory/6p-c0")
+    _evalFile("Laboratory/6p-c0", )

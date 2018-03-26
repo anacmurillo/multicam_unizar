@@ -1,18 +1,30 @@
+"""
+Generates a video showing both the dataset and the result of the tracker with colors
+"""
+
 import cv2
 
 from colorUtility import getColors
 from evaluator import evalFile
 from groundTruthParser import parseFile, getVideo
 
+FOLDER = "/videos/"
 
-def generateVideo(filename):
+
+def generateVideo(filename, tracker):
+    """
+    Generates the video from the dataset and the tracker
+    :param filename: the filename of the video
+    :param tracker: the tracker to use
+    :return: Nothing (but a file "{filename}_{tracker}.avi" is generated)
+    """
     track_ids, data_groundTruth = parseFile(filename)
-    data_tracker, n_frames = evalFile(filename)
+    n_frames, data_tracker = evalFile(filename, tracker)
     colors_list = getColors(len(track_ids))
 
     # initialize video output
     video_in = getVideo(filename)
-    video_out = cv2.VideoWriter('output.avi', cv2.VideoWriter_fourcc(*'XVID'), 25.0, (int(video_in.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_in.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+    video_out = cv2.VideoWriter(FOLDER+filename+"/"+tracker+'avi', cv2.VideoWriter_fourcc(*'XVID'), 25.0, (int(video_in.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_in.get(cv2.CAP_PROP_FRAME_HEIGHT))))
 
     print "Generating..."
 
@@ -30,7 +42,7 @@ def generateVideo(filename):
             bbox_tr = data_tracker[frame_index].get(id, None)
 
             drawIfPresent(frame, bbox_gt, "gt", colors_list[id_index], False)
-            drawIfPresent(frame, bbox_tr, "tracker", colors_list[id_index], True)
+            drawIfPresent(frame, bbox_tr, "tr", colors_list[id_index], True)
             drawLineBetween(frame, bbox_gt, bbox_tr, colors_list[id_index])
 
         video_out.write(frame)
@@ -42,6 +54,9 @@ def generateVideo(filename):
 
 
 def drawIfPresent(frame, bbox, text, color, tracker):
+    """
+    Draws the bbox if not None with specified properties
+    """
     if bbox is None:
         return
 
@@ -52,11 +67,14 @@ def drawIfPresent(frame, bbox, text, color, tracker):
 
 
 def drawLineBetween(frame, bboxA, bboxB, color):
+    """
+    Draws a line bewteen both bboxes, or a point, or none
+    """
     if bboxA is not None:
-        cA = (bboxA[0]/2 + bboxA[2] / 2, bboxA[1]/2 + bboxA[3] / 2)
+        cA = (bboxA[0] / 2 + bboxA[2] / 2, bboxA[1] / 2 + bboxA[3] / 2)
 
     if bboxB is not None:
-        cB = (bboxB[0]/2 + bboxB[2] / 2, bboxB[1]/2 + bboxB[3] / 2)
+        cB = (bboxB[0] / 2 + bboxB[2] / 2, bboxB[1] / 2 + bboxB[3] / 2)
 
     if bboxA is None and bboxB is not None:
         cv2.drawMarker(frame, cB, color, cv2.MARKER_SQUARE, 2)
@@ -67,9 +85,5 @@ def drawLineBetween(frame, bboxA, bboxB, color):
 
 
 if __name__ == '__main__':
-    generateVideo("Laboratory/6p-c0")
-    # evaluate("Basketball/match5-c2")
+    generateVideo("Laboratory/6p-c0", 'BOOSTING')
 
-    # for filename in getFilenames():
-    #    print filename
-    #    evaluate(filename)
