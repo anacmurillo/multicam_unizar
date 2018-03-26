@@ -2,7 +2,7 @@ import sys
 
 import cv2
 
-from cache import cachedObject
+from cache import cache_decorate
 from colorUtility import getColors
 from groundTruthParser import parseFile, getVideo
 
@@ -36,14 +36,12 @@ def _getTracker(tracker_type):
     return tracker
 
 
-def evalFile(filename, display=False, tracker_type='BOOSTING'):
-    if display:
-        return _evalFile(filename, display, tracker_type)
-    else:
-        return cachedObject(filename + tracker_type, lambda: _evalFile(filename, display))
+@cache_decorate("{0}{1}")
+def evalFile(filename, tracker_type='BOOSTING'):
+    return _evalFile(filename, False, tracker_type)
 
 
-def _evalFile(filename, display=False, tracker_type='BOOSTING'):
+def _evalFile(filename, display=True, tracker_type='BOOSTING'):
     # parse groundtruth
     track_ids, data = parseFile(filename)
 
@@ -78,7 +76,7 @@ def _evalFile(filename, display=False, tracker_type='BOOSTING'):
                 xmin, ymin, xmax, ymax, lost, occluded, generated, label = data[frame_index][id]
                 if not lost:
                     # initialize tracker
-                    tracker = _getTracker()
+                    tracker = _getTracker(tracker_type)
                     bbox = (xmin, ymin, xmax - xmin, ymax - ymin)
                     if tracker.init(frame, bbox):
                         print "initialized tracker", tracker_type, "for person", id, "correctly"
@@ -134,4 +132,4 @@ def _evalFile(filename, display=False, tracker_type='BOOSTING'):
 
 if __name__ == '__main__':
     # evalFile("Basketball/match5-c0")
-    evalFile("Laboratory/6p-c0", True)
+    _evalFile("Laboratory/6p-c0")

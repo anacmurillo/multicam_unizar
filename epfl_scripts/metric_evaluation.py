@@ -13,7 +13,7 @@ threshold_range = 100
 def evaluate(filename, tracker):
     track_ids, data_groundTruth = parseFile(filename)
 
-    data_tracker, n_frames = evalFile(filename, False, tracker)
+    data_tracker, n_frames = evalFile(filename, tracker)
 
     motp_total, motp_ids = motp(track_ids, n_frames, data_groundTruth, data_tracker)
     print "MOTP: total =", motp_total

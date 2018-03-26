@@ -7,12 +7,33 @@ import pickle
 savedFolder = "_cache_/"
 
 
+def cache_decorate(name, forceLoad=False):
+    """
+    Decorator to mark functions as cached under a name.
+    The name is formatted {.format()} with the function parameters, to allow parameters-dependent caches
+    Examples:   cache_decorate("mycache") will store the cache under 'mycache'
+                cache_decorate("{0}_cache") will store foo(1) under '0_cache', foo('s') under 's_cache', and so on.
+    """
+
+    def func_decorator(func):
+        def func_wrapper(*args, **kwargs):
+            print(name.format(*args, **kwargs))
+            return cachedObject(name.format(*args, **kwargs), lambda: func(*args, **kwargs), forceLoad)
+
+        return func_wrapper
+
+    return func_decorator
+
+
+###################### internal ############################
+
+
 def saveObject(obj, name):
     """
     Save the object 'obj' under the name 'name'
     """
     checkFolder()
-    with open(getFilename(name), 'wb') as output:
+    with open(convertFilename(name), 'wb') as output:
         pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
 
 
@@ -22,9 +43,9 @@ def loadObject(name):
     Returns the object or 'None' if not found
     """
     checkFolder()
-    if not os.path.isfile(getFilename(name)):
+    if not os.path.isfile(convertFilename(name)):
         return None
-    with open(getFilename(name), 'rb') as output:
+    with open(convertFilename(name), 'rb') as output:
         return pickle.load(output)
 
 
@@ -47,26 +68,8 @@ def deleteCache(name):
     """
     Deletes the cached file under 'name' if exists, otherwise do nothing
     """
-    if os.path.isfile(getFilename(name)):
-        os.remove(getFilename(name))
-
-
-def cache_decorate(name, forceLoad=False):
-    """
-    Decorator to mark functions as cached under a name.
-    Currently the name is fixed.
-    """
-
-    def func_decorator(func):
-        def func_wrapper(*args, **kwargs):
-            return cachedObject(name, lambda: func(*args, **kwargs), forceLoad)
-
-        return func_wrapper
-
-    return func_decorator
-
-
-#########################################################################
+    if os.path.isfile(convertFilename(name)):
+        os.remove(convertFilename(name))
 
 
 def checkFolder():
@@ -79,7 +82,7 @@ def checkFolder():
                 raise
 
 
-def getFilename(name):
+def convertFilename(name):
     return savedFolder + "".join(x if x.isalnum() else "_" for x in name) + ".pkl"
 
 
