@@ -2,6 +2,7 @@ import math
 import matplotlib.colors as pltcolors
 import matplotlib.patches as pltpatches
 import matplotlib.pyplot as plt
+import matplotlib.ticker as pltticker
 
 from evaluator import evalFile
 from groundTruthParser import parseFile
@@ -24,19 +25,36 @@ def evaluate(filename, tracker):
     for id in track_ids:
         print "    ", id, "=", mota_ids[id]
 
+    # frame legend
     colors = ['black', 'purple', 'blue', 'red', 'green']
     labels = ['Not present', 'Tracker found ghost', 'Tracker didn\'t found', 'Missed', 'Found']
     colormap = pltcolors.LinearSegmentedColormap.from_list('name', colors)
     binaries = getTrackType(track_ids, n_frames, data_groundTruth, data_tracker)
+    minorTicks = []
+    mayorTicks = []
     for index, id in enumerate(track_ids):
-        length = len(binaries[id])
-        scttr = plt.scatter(range(length), [index] * length, s=50, c=binaries[id], marker='|', edgecolors='none', cmap=colormap)
+        x = range(len(binaries[id]))
+        y = []
+        for y_index in x:
+            val = binaries[id][y_index]
+            val = val if val >= 0 else 1 if val == -3 else 0
+            y.append(index - 0.3 + val * 0.6)
+        minorTicks.extend([index - 0.3, index + 0.3])
+        mayorTicks.append(index)
+        plt.scatter(x, y, s=25, c=binaries[id], marker='|', edgecolors='none', cmap=colormap)
     legend = []
     for i in range(len(labels)):
         legend.append(pltpatches.Rectangle((0, 0), 1, 2, fc=colors[i]))
     plt.legend(legend, labels, bbox_to_anchor=(0.5, 1), loc='upper center', ncol=3, fontsize=10)
-    plt.xlim([0, length])
+    plt.xlim([0, n_frames])
+    plt.ylim([-0.5, len(track_ids) + 0.5])
     plt.title('Detection - ' + filename + ' - ' + tracker)
+    plt.xlabel('frames')
+    plt.ylabel('persons')
+    plt.yticks(mayorTicks)
+    plt.gca().yaxis.set_minor_locator(pltticker.FixedLocator(minorTicks))
+    plt.grid(True, which='major', axis='y', linestyle=':')
+    plt.grid(True, which='minor', axis='y', linestyle='-')
     plt.show()
 
     # for id in track_ids:
