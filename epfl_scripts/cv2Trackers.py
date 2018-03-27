@@ -1,11 +1,11 @@
 """
-Evaluates one of the available trackers on a dataset filename.
+Evaluates one of the available trackers on a dataset.
 
 normal usage:
 
-filename = # get valid filename from groundTruthParser
+dataset = # get valid dataset from groundTruthParser
 for tracker in getTrackers():
-    n_frames, data = evaluateTracker(filename, tracker):
+    n_frames, data = evaluateTracker(dataset, tracker):
     # do something
 """
 import sys
@@ -30,11 +30,11 @@ def getTrackers():
 
 
 @cache_function("{0}_{1}")
-def evaluateTracker(filename, tracker_type):
+def evaluateTracker(dataset, tracker_type):
     """
-    Returns the evaluation of the selected tracker on the specified filename.
+    Returns the evaluation of the selected tracker on the specified dataset.
     Cached function, can return value inmediately or take minutes
-    :param filename: filename of the file to evaluate
+    :param dataset: dataset of the file to evaluate
     :param tracker_type: tracker to use
     :return: (n_frames, data) where
         n_frames: number of frames evaluated
@@ -49,7 +49,7 @@ def evaluateTracker(filename, tracker_type):
                     ymax: The bottom right y-coordinate of the bounding box.
     (example {0: {0: [0,0,1,1], 1: [0,0,1,1]}, 1: {0: [0,0,1,1], 1: [0,0,1,1]}})
     """
-    return _evalTracker(filename, tracker_type, False)
+    return _evalTracker(dataset, tracker_type, False)
 
 
 ################## internal #######################3
@@ -80,13 +80,13 @@ def _getTracker(tracker_type):
     return tracker
 
 
-def _evalTracker(filename, tracker_type, display=True):
+def _evalTracker(dataset, tracker_type, display=True):
     """
     Evaluates the tracker, returns the dataset (check evaluateTracker)
     if display=True the evaluation is shown live
     """
     # parse groundtruth
-    track_ids, data = getGroundTruth(filename)
+    track_ids, data = getGroundTruth(dataset)
 
     colors_list = getColors(len(track_ids))
     trackers = {}
@@ -94,7 +94,7 @@ def _evalTracker(filename, tracker_type, display=True):
         trackers[id] = None
 
     # Read video
-    video = getVideo(filename)
+    video = getVideo(dataset)
 
     # Exit if video not opened.
     if not video.isOpened():

@@ -7,7 +7,7 @@ Internal debugging utility, no real usage.
 import cv2  # read video file
 
 from colorUtility import getColors
-from groundTruthParser import getGroundTruth, getDatasetFilenames
+from groundTruthParser import getGroundTruth, getDatasets
 
 # settings
 video_folder = "/home/jaguilar/Abel/epfl/dataset/CVLAB/"
@@ -59,7 +59,7 @@ def runAll():
     """
     for all filenames
     """
-    for filename in getDatasetFilenames():
+    for filename in getDatasets():
         print filename
         evalFile(filename)
 

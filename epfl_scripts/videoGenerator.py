@@ -8,24 +8,24 @@ import cv2
 
 from colorUtility import getColors
 from cv2Trackers import evaluateTracker, getTrackers
-from groundTruthParser import getGroundTruth, getVideo, getDatasetFilenames
+from groundTruthParser import getGroundTruth, getVideo, getDatasets
 
 FOLDER = "videos/"
 
 
-def generateVideo(filename, tracker):
+def generateVideo(dataset, tracker):
     """
     Generates the video from the dataset and the tracker
-    :param filename: the filename of the dataset
+    :param dataset: the dataset to use
     :param tracker: the tracker to use
-    :return: Nothing (but a file "{filename}_{tracker}.avi" is generated)
+    :return: Nothing (but a file "{dataset}_{tracker}.avi" is generated)
     """
-    track_ids, data_groundTruth = getGroundTruth(filename)
-    n_frames, data_tracker = evaluateTracker(filename, tracker)
+    track_ids, data_groundTruth = getGroundTruth(dataset)
+    n_frames, data_tracker = evaluateTracker(dataset, tracker)
     colors_list = getColors(len(track_ids))
 
     # initialize video input
-    video_in = getVideo(filename)
+    video_in = getVideo(dataset)
 
     # initialize video output
     if not os.path.exists(os.path.dirname(FOLDER)):
@@ -35,7 +35,7 @@ def generateVideo(filename, tracker):
             import errno
             if exc.errno != errno.EEXIST:
                 raise
-    video_out = cv2.VideoWriter(FOLDER + "".join(x if x.isalnum() else "_" for x in filename+"_"+tracker) + '.avi', cv2.VideoWriter_fourcc(*'XVID'), 25.0, (int(video_in.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_in.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+    video_out = cv2.VideoWriter(FOLDER + "".join(x if x.isalnum() else "_" for x in dataset + "_" + tracker) + '.avi', cv2.VideoWriter_fourcc(*'XVID'), 25.0, (int(video_in.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_in.get(cv2.CAP_PROP_FRAME_HEIGHT))))
 
     print "Generating..."
 
@@ -96,18 +96,18 @@ def drawLineBetween(frame, bboxA, bboxB, color):
 
 
 def generateAll():
-    for filename in getDatasetFilenames():
+    for dataset in getDatasets():
         for tracker in getTrackers():
 
             try:
                 print "\n\n\n\n\n\n\n"
-                print "evaluating", filename, tracker
-                generateVideo(filename, tracker)
+                print "evaluating", dataset, tracker
+                generateVideo(dataset, tracker)
             except BaseException as error:
                 print('An exception occurred: {}'.format(error))
 
 
 if __name__ == '__main__':
-    #generateVideo("Laboratory/6p-c0", 'BOOSTING')
+    # generateVideo("Laboratory/6p-c0", 'BOOSTING')
 
     generateAll()

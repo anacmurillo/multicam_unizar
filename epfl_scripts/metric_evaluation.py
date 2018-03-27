@@ -13,15 +13,15 @@ from groundTruthParser import getGroundTruth
 threshold_range = 100
 
 
-def evaluateMetrics(filename, tracker):
+def evaluateMetrics(dataset, tracker):
     """
-    Evaluates the specified filename with the specified tracker
-    :param filename: the filename to evaluate
+    Evaluates the specified dataset with the specified tracker
+    :param dataset: the dataset to evaluate
     :param tracker: the tracker to evaluate
     """
-    track_ids, data_groundTruth = getGroundTruth(filename)
+    track_ids, data_groundTruth = getGroundTruth(dataset)
 
-    n_frames, data_tracker = evaluateTracker(filename, tracker)
+    n_frames, data_tracker = evaluateTracker(dataset, tracker)
 
     # MOTP
     print "MOTP:"
@@ -61,7 +61,7 @@ def evaluateMetrics(filename, tracker):
     plt.legend(legend, labels, bbox_to_anchor=(0.5, 1), loc='upper center', ncol=3, fontsize=10)
     plt.xlim([0, n_frames])
     plt.ylim([-0.5, len(track_ids) + 0.5])
-    plt.title('Detection - ' + filename + ' - ' + tracker)
+    plt.title('Detection - ' + dataset + ' - ' + tracker)
     plt.xlabel('frames')
     plt.ylabel('persons')
     plt.yticks(*zip(*list(enumerate(track_ids))))
@@ -86,7 +86,7 @@ def evaluateMetrics(filename, tracker):
     # plt.xlim([0, 1])
     # plt.ylabel('precision')
     # plt.ylim([0, 1])
-    # plt.title('precision-recall - ' + filename + ' - ' + tracker)
+    # plt.title('precision-recall - ' + dataset + ' - ' + tracker)
     # plt.show()
 
 
@@ -261,6 +261,6 @@ if __name__ == '__main__':
     evaluateMetrics("Laboratory/6p-c0", 'KCF')
     # evaluateMetrics("Basketball/match5-c2")
 
-    # for filename in getDatasetFilenames():
-    #    print filename
-    #    evaluateMetrics(filename)
+    # for dataset in getDatasets():
+    #    print dataset
+    #    evaluateMetrics(dataset)

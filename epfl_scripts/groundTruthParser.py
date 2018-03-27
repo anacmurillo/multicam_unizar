@@ -3,9 +3,9 @@ Returns groundtruth data and videos
 
 normal usage:
 
-for filename in getDatasetFilenames():
-    video = getVideo(filename):
-    track_ids, data = getGroundTruth(filename)
+for dataset in getDatasets():
+    video = getVideo(dataset):
+    track_ids, data = getGroundTruth(dataset)
     # do something
 
 """
@@ -19,31 +19,31 @@ groundtruth_folder = "/home/jaguilar/Abel/epfl/dataset/merayxu-multiview-object-
 video_folder = "/home/jaguilar/Abel/epfl/dataset/CVLAB/"
 
 
-def getDatasetFilenames():
+def getDatasets():
     """
-    Returns list of filenames that can be used to extract groundtruth
+    Returns list of names that can be used to extract groundtruth
     :return: ["a/b","a/c",...]
     """
-    filenames = []
+    datasets = []
     for path, subdirs, files in os.walk(groundtruth_folder):
         for name in files:
-            filenames.append(os.path.join(os.path.relpath(path, groundtruth_folder), os.path.splitext(name)[0]))
-    return filenames
+            datasets.append(os.path.join(os.path.relpath(path, groundtruth_folder), os.path.splitext(name)[0]))
+    return datasets
 
 
-def getVideo(filename):
+def getVideo(dataset):
     """
-    Returns the video of the filename provided
-    :param filename: the filename as returned by getDatasetFilenames()
+    Returns the video of the datset provided
+    :param dataset: the datset name as returned by getDatasets()
     :return: cv2.VideoCapture
     """
-    return cv2.VideoCapture(video_folder + filename + ".avi")
+    return cv2.VideoCapture(video_folder + dataset + ".avi")
 
 
-def getGroundTruth(filename):
+def getGroundTruth(dataset):
     """
-    Returns the groundtruth of the filenamed provided
-    :param filename: the filename as returned by getDatasetFilenames()
+    Returns the groundtruth of the dataset provided
+    :param dataset: the dataset as returned by getDatasets()
     :return: (tracks_ids, data) where:
         track_ids: list of ids, each id is one person (example [0,1,2,3])
         data: dictionary, frame->frame_info
@@ -63,7 +63,7 @@ def getGroundTruth(filename):
 
     """
 
-    path = groundtruth_folder + filename + ".txt"
+    path = groundtruth_folder + dataset + ".txt"
 
     track_ids = set()
 
