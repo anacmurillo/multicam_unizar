@@ -5,7 +5,7 @@ normal usage:
 
 for filename in getDatasetFilenames():
     video = getVideo(filename):
-    track_ids, data = parseFile(filename)
+    track_ids, data = getGroundTruth(filename)
     # do something
 
 """

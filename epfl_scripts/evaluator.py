@@ -5,7 +5,7 @@ normal usage:
 
 filename = # get valid filename from groundTruthParser
 for tracker in getTrackers():
-    n_frames, data = evalFile(filename, tracker):
+    n_frames, data = evaluateTracker(filename, tracker):
     # do something
 """
 import sys
@@ -49,7 +49,7 @@ def evaluateTracker(filename, tracker_type):
                     ymax: The bottom right y-coordinate of the bounding box.
     (example {0: {0: [0,0,1,1], 1: [0,0,1,1]}, 1: {0: [0,0,1,1], 1: [0,0,1,1]}})
     """
-    return _evalFile(filename, tracker_type, False)
+    return _evalTracker(filename, tracker_type, False)
 
 
 ################## internal #######################3
@@ -80,7 +80,7 @@ def _getTracker(tracker_type):
     return tracker
 
 
-def _evalFile(filename, tracker_type, display=True):
+def _evalTracker(filename, tracker_type, display=True):
     """
     Evaluates the tracker, returns the dataset (check evaluateTracker)
     if display=True the evaluation is shown live
@@ -158,9 +158,9 @@ def _evalFile(filename, tracker_type, display=True):
                 frame_index += 1
                 break
         else:
-            #sys.stdout.write("\r" + str(frame_index) + " ")
-            #sys.stdout.flush()
-            pass
+            if sys.stdout.isatty():
+                sys.stdout.write("\r" + str(frame_index) + " ")
+                sys.stdout.flush()
 
         # Read a new frame
         ok, frame = video.read()
@@ -176,4 +176,4 @@ def _evalFile(filename, tracker_type, display=True):
 
 if __name__ == '__main__':
     # evaluateTracker("Basketball/match5-c0")
-    _evalFile("Laboratory/6p-c0", )
+    _evalTracker("Laboratory/6p-c0", )
