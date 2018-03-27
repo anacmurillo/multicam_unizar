@@ -7,7 +7,7 @@ import os
 import cv2
 
 from colorUtility import getColors
-from evaluator import evaluateTracker, getTrackers
+from cv2Trackers import evaluateTracker, getTrackers
 from groundTruthParser import getGroundTruth, getVideo, getDatasetFilenames
 
 FOLDER = "videos/"
@@ -16,7 +16,7 @@ FOLDER = "videos/"
 def generateVideo(filename, tracker):
     """
     Generates the video from the dataset and the tracker
-    :param filename: the filename of the video
+    :param filename: the filename of the dataset
     :param tracker: the tracker to use
     :return: Nothing (but a file "{filename}_{tracker}.avi" is generated)
     """

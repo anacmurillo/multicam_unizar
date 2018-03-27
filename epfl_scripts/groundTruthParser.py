@@ -21,7 +21,7 @@ video_folder = "/home/jaguilar/Abel/epfl/dataset/CVLAB/"
 
 def getDatasetFilenames():
     """
-    Returns list of filenames that an be used to extract groundtruth from
+    Returns list of filenames that can be used to extract groundtruth
     :return: ["a/b","a/c",...]
     """
     filenames = []

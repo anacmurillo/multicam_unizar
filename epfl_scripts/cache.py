@@ -16,13 +16,13 @@ savedFolder = "_cache_/"
 
 def cache_function(name, forceLoad=False):
     """
-    Decorator to mark functions as cached under a name.
+    Decorator to mark functions as cached under a name. (Memoization)
     The name is formatted {.format()} with the function parameters, to allow parameters-dependent caches
     If the name is already cached, the value is returned without evaluating the function.
     If the name is not cached OR forceload=True, the function is evaluated, saved and returned
 
     Examples:   cache_function("mycache") will store the cache under 'mycache'
-                cache_function("{0}_cache") will store foo(1) under '0_cache', foo('s') under 's_cache', and so on.
+                cache_function("{0}_cache") will store foo(1) under '1_cache', foo('s') under 's_cache', and so on.
     """
 
     def func_decorator(func):
@@ -73,7 +73,7 @@ def cachedObject(name, default=lambda: None, forceLoad=False):
     return saved
 
 
-def deleteCache(name):
+def deleteObject(name):
     """
     Deletes the cached file under 'name' if exists, otherwise do nothing
     """
@@ -146,7 +146,7 @@ if __name__ == '__main__':
     print "loading not existing variable with lambda function..."
     b = cachedObject("_thishouldnotexists_", lambda: lmb("should be shown"))
     print "b = ", b
-    deleteCache("_thishouldnotexists_")
+    deleteObject("_thishouldnotexists_")
 
     print
 
@@ -158,7 +158,7 @@ if __name__ == '__main__':
 
     print "Testing decorator"
 
-    deleteCache("_test_")
+    deleteObject("_test_")
 
 
     @cache_function("_test_")
@@ -171,4 +171,4 @@ if __name__ == '__main__':
 
     print awesomeFunction(3, 4)
 
-    deleteCache("_test_")
+    deleteObject("_test_")
