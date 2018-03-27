@@ -7,7 +7,7 @@ Internal debugging utility, no real usage.
 import cv2  # read video file
 
 from colorUtility import getColors
-from groundTruthParser import parseFile, getFilenames
+from groundTruthParser import getGroundTruth, getDatasetFilenames
 
 # settings
 video_folder = "/home/jaguilar/Abel/epfl/dataset/CVLAB/"
@@ -19,7 +19,7 @@ def evalFile(filename):
     :param filename: the dataset filename
     """
     # read groundtruth
-    track_ids, data = parseFile(filename)
+    track_ids, data = getGroundTruth(filename)
 
     # generate colors
     persons = len(track_ids)
@@ -59,11 +59,11 @@ def runAll():
     """
     for all filenames
     """
-    for filename in getFilenames():
+    for filename in getDatasetFilenames():
         print filename
         evalFile(filename)
 
 
 if __name__ == '__main__':
     runAll()
-    # evalFile("Basketball/match5-c0")
+    # evaluateTracker("Basketball/match5-c0")

@@ -7,21 +7,21 @@ import matplotlib.patches as pltpatches
 import matplotlib.pyplot as plt
 import matplotlib.ticker as pltticker
 
-from evaluator import evalFile
-from groundTruthParser import parseFile
+from evaluator import evaluateTracker
+from groundTruthParser import getGroundTruth
 
 threshold_range = 100
 
 
-def evaluate(filename, tracker):
+def evaluateMetrics(filename, tracker):
     """
     Evaluates the specified filename with the specified tracker
     :param filename: the filename to evaluate
     :param tracker: the tracker to evaluate
     """
-    track_ids, data_groundTruth = parseFile(filename)
+    track_ids, data_groundTruth = getGroundTruth(filename)
 
-    n_frames, data_tracker = evalFile(filename, tracker)
+    n_frames, data_tracker = evaluateTracker(filename, tracker)
 
     # MOTP
     print "MOTP:"
@@ -257,10 +257,10 @@ def f_euclidian(a, b):
 
 
 if __name__ == '__main__':
-    evaluate("Laboratory/6p-c0", 'BOOSTING')
-    evaluate("Laboratory/6p-c0", 'KCF')
-    # evaluate("Basketball/match5-c2")
+    evaluateMetrics("Laboratory/6p-c0", 'BOOSTING')
+    evaluateMetrics("Laboratory/6p-c0", 'KCF')
+    # evaluateMetrics("Basketball/match5-c2")
 
-    # for filename in getFilenames():
+    # for filename in getDatasetFilenames():
     #    print filename
-    #    evaluate(filename)
+    #    evaluateMetrics(filename)

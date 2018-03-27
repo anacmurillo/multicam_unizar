@@ -14,7 +14,7 @@ import cv2
 
 from cache import cache_function
 from colorUtility import getColors
-from groundTruthParser import parseFile, getVideo
+from groundTruthParser import getGroundTruth, getVideo
 
 WIN_NAME = "Tracking"
 
@@ -23,14 +23,14 @@ TRACKER_TYPES = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW']  # , 'GOTURN' ma
 
 def getTrackers():
     """
-    Returns available trackers that can be used in the evalFile function
+    Returns available trackers that can be used in the evaluateTracker function
     :return: list of trackers (strings)
     """
     return TRACKER_TYPES
 
 
 @cache_function("{0}_{1}")
-def evalFile(filename, tracker_type):
+def evaluateTracker(filename, tracker_type):
     """
     Returns the evaluation of the selected tracker on the specified filename.
     Cached function, can return value inmediately or take minutes
@@ -82,11 +82,11 @@ def _getTracker(tracker_type):
 
 def _evalFile(filename, tracker_type, display=True):
     """
-    Evaluates the tracker, returns the dataset (check evalFile)
+    Evaluates the tracker, returns the dataset (check evaluateTracker)
     if display=True the evaluation is shown live
     """
     # parse groundtruth
-    track_ids, data = parseFile(filename)
+    track_ids, data = getGroundTruth(filename)
 
     colors_list = getColors(len(track_ids))
     trackers = {}
@@ -158,8 +158,9 @@ def _evalFile(filename, tracker_type, display=True):
                 frame_index += 1
                 break
         else:
-            sys.stdout.write("\r" + str(frame_index) + " ")
-            sys.stdout.flush()
+            #sys.stdout.write("\r" + str(frame_index) + " ")
+            #sys.stdout.flush()
+            pass
 
         # Read a new frame
         ok, frame = video.read()
@@ -174,5 +175,5 @@ def _evalFile(filename, tracker_type, display=True):
 
 
 if __name__ == '__main__':
-    # evalFile("Basketball/match5-c0")
+    # evaluateTracker("Basketball/match5-c0")
     _evalFile("Laboratory/6p-c0", )

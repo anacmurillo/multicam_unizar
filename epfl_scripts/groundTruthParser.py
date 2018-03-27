@@ -3,7 +3,7 @@ Returns groundtruth data and videos
 
 normal usage:
 
-for filename in getFilenames():
+for filename in getDatasetFilenames():
     video = getVideo(filename):
     track_ids, data = parseFile(filename)
     # do something
@@ -19,7 +19,7 @@ groundtruth_folder = "/home/jaguilar/Abel/epfl/dataset/merayxu-multiview-object-
 video_folder = "/home/jaguilar/Abel/epfl/dataset/CVLAB/"
 
 
-def getFilenames():
+def getDatasetFilenames():
     """
     Returns list of filenames that an be used to extract groundtruth from
     :return: ["a/b","a/c",...]
@@ -34,16 +34,16 @@ def getFilenames():
 def getVideo(filename):
     """
     Returns the video of the filename provided
-    :param filename: the filename as returned by getFilenames()
+    :param filename: the filename as returned by getDatasetFilenames()
     :return: cv2.VideoCapture
     """
     return cv2.VideoCapture(video_folder + filename + ".avi")
 
 
-def parseFile(filename):
+def getGroundTruth(filename):
     """
     Returns the groundtruth of the filenamed provided
-    :param filename: the filename as returned by getFilenames()
+    :param filename: the filename as returned by getDatasetFilenames()
     :return: (tracks_ids, data) where:
         track_ids: list of ids, each id is one person (example [0,1,2,3])
         data: dictionary, frame->frame_info

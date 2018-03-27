@@ -7,8 +7,8 @@ import os
 import cv2
 
 from colorUtility import getColors
-from evaluator import evalFile, getTrackers
-from groundTruthParser import parseFile, getVideo, getFilenames
+from evaluator import evaluateTracker, getTrackers
+from groundTruthParser import getGroundTruth, getVideo, getDatasetFilenames
 
 FOLDER = "videos/"
 
@@ -20,8 +20,8 @@ def generateVideo(filename, tracker):
     :param tracker: the tracker to use
     :return: Nothing (but a file "{filename}_{tracker}.avi" is generated)
     """
-    track_ids, data_groundTruth = parseFile(filename)
-    n_frames, data_tracker = evalFile(filename, tracker)
+    track_ids, data_groundTruth = getGroundTruth(filename)
+    n_frames, data_tracker = evaluateTracker(filename, tracker)
     colors_list = getColors(len(track_ids))
 
     # initialize video input
@@ -95,14 +95,8 @@ def drawLineBetween(frame, bboxA, bboxB, color):
         cv2.line(frame, cA, cB, color)
 
 
-if __name__ == '__main__':
-    generateVideo("Laboratory/6p-c0", 'BOOSTING')
-
-    # generateAll()
-
-
 def generateAll():
-    for filename in getFilenames():
+    for filename in getDatasetFilenames():
         for tracker in getTrackers():
 
             try:
@@ -111,3 +105,9 @@ def generateAll():
                 generateVideo(filename, tracker)
             except BaseException as error:
                 print('An exception occurred: {}'.format(error))
+
+
+if __name__ == '__main__':
+    #generateVideo("Laboratory/6p-c0", 'BOOSTING')
+
+    generateAll()
