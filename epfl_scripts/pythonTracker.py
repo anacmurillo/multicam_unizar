@@ -1,3 +1,7 @@
+"""
+Test of tracker. Demo script.
+No usage
+"""
 import sys
 
 import cv2

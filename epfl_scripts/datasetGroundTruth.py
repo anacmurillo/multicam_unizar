@@ -1,3 +1,9 @@
+"""
+Shows the groundtruth dataset.
+
+Internal debugging utility, no real usage.
+"""
+
 import cv2  # read video file
 
 from colorUtility import getColors
@@ -8,6 +14,10 @@ video_folder = "/home/jaguilar/Abel/epfl/dataset/CVLAB/"
 
 
 def evalFile(filename):
+    """
+    Shows the groundtruth of the filename visually
+    :param filename: the dataset filename
+    """
     # read groundtruth
     track_ids, data = parseFile(filename)
 
@@ -46,6 +56,9 @@ def evalFile(filename):
 
 
 def runAll():
+    """
+    for all filenames
+    """
     for filename in getFilenames():
         print filename
         evalFile(filename)
