@@ -33,8 +33,8 @@ def getDatasets():
 
 def getVideo(dataset):
     """
-    Returns the video of the datset provided
-    :param dataset: the datset name as returned by getDatasets()
+    Returns the video of the dataset provided
+    :param dataset: the dataset as returned by getDatasets()
     :return: cv2.VideoCapture
     """
     return cv2.VideoCapture(video_folder + dataset + ".avi")

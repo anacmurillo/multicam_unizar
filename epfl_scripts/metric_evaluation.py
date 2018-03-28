@@ -257,8 +257,8 @@ def f_euclidian(a, b):
 
 
 if __name__ == '__main__':
-    evaluateMetrics("Laboratory/6p-c0", 'BOOSTING')
-    evaluateMetrics("Laboratory/6p-c0", 'KCF')
+    evaluateMetrics("Laboratory/6p-c0", 'MEANSHIFT')
+    evaluateMetrics("Laboratory/6p-c0", 'CAMSHIFT')
     # evaluateMetrics("Basketball/match5-c2")
 
     # for dataset in getDatasets():

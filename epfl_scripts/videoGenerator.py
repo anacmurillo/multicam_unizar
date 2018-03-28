@@ -79,7 +79,7 @@ def drawIfPresent(frame, bbox, text, color, tracker):
 
 def drawLineBetween(frame, bboxA, bboxB, color):
     """
-    Draws a line bewteen both bboxes, or a point, or none
+    Draws a line between both bboxes, or a point, or none
     """
     if bboxA is not None:
         cA = (bboxA[0] / 2 + bboxA[2] / 2, bboxA[1] / 2 + bboxA[3] / 2)
@@ -108,6 +108,8 @@ def generateAll():
 
 
 if __name__ == '__main__':
-    # generateVideo("Laboratory/6p-c0", 'BOOSTING')
+    #generateVideo("Laboratory/6p-c0", 'BOOSTING')
 
-    generateAll()
+    generateVideo("Terrace/terrace1-c0", "KCF") #error
+
+    #generateAll()

@@ -65,5 +65,6 @@ def runAll():
 
 
 if __name__ == '__main__':
-    runAll()
+    #runAll()
+    evalFile("Terrace/terrace1-c0")
     # evaluateTracker("Basketball/match5-c0")

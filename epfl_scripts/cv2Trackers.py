@@ -12,13 +12,21 @@ import sys
 
 import cv2
 
-from cache import cache_function
 from colorUtility import getColors
 from groundTruthParser import getGroundTruth, getVideo
+from shiftTrackers import CAMshiftTracker, MeanShiftTracker
 
 WIN_NAME = "Tracking"
 
-TRACKER_TYPES = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW']  # , 'GOTURN' makes error
+TRACKER_TYPES = []
+TRACKER_TYPES.append('BOOSTING')  # best recognition, very slow
+# TRACKER_TYPES.append('MIL')  # bad recognition
+TRACKER_TYPES.append('KCF')  # good recognition, fast
+# TRACKER_TYPES.append('TLD')  # bad recognition
+# TRACKER_TYPES.append('MEDIANFLOW')  # bad recognition
+# TRACKER_TYPES.append('GOTURN')  # runtime error
+TRACKER_TYPES.append('CAMSHIFT')
+TRACKER_TYPES.append('MEANSHIFT')
 
 
 def getTrackers():
@@ -29,7 +37,7 @@ def getTrackers():
     return TRACKER_TYPES
 
 
-@cache_function("{0}_{1}")
+# @cache_function("{0}_{1}")
 def evaluateTracker(dataset, tracker_type):
     """
     Returns the evaluation of the selected tracker on the specified dataset.
@@ -60,6 +68,12 @@ def _getTracker(tracker_type):
     returns the cv2 tracker of the specified type
     throws error if invalid type
     """
+    if tracker_type == 'CAMSHIFT':
+        return CAMshiftTracker()
+
+    if tracker_type == 'MEANSHIFT':
+        return MeanShiftTracker()
+
     if int(cv2.__version__.split('.')[1]) < 3:
         tracker = cv2.Tracker_create(tracker_type)
     else:
@@ -176,4 +190,5 @@ def _evalTracker(dataset, tracker_type, display=True):
 
 if __name__ == '__main__':
     # evaluateTracker("Basketball/match5-c0")
-    _evalTracker("Laboratory/6p-c0", )
+    _evalTracker("Laboratory/6p-c0", 'MEANSHIFT')
+    _evalTracker("Laboratory/6p-c0", 'CAMSHIFT')
