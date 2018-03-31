@@ -37,7 +37,7 @@ def getTrackers():
     return TRACKER_TYPES
 
 
-# @cache_function("{0}_{1}")
+# @cache_function("gt_{0}_{1}")
 def evaluateTracker(dataset, tracker_type):
     """
     Returns the evaluation of the selected tracker on the specified dataset.
@@ -63,7 +63,7 @@ def evaluateTracker(dataset, tracker_type):
 ################## internal #######################3
 
 
-def _getTracker(tracker_type):
+def getTracker(tracker_type):
     """
     returns the cv2 tracker of the specified type
     throws error if invalid type
@@ -133,7 +133,7 @@ def _evalTracker(dataset, tracker_type, display=True):
                 xmin, ymin, xmax, ymax, lost, occluded, generated, label = data[frame_index][id]
                 if not lost:
                     # initialize tracker
-                    tracker = _getTracker(tracker_type)
+                    tracker = getTracker(tracker_type)
                     bbox = (xmin, ymin, xmax - xmin, ymax - ymin)
                     if tracker.init(frame, bbox):
                         print "initialized tracker", tracker_type, "for person", id, "correctly"
@@ -190,5 +190,4 @@ def _evalTracker(dataset, tracker_type, display=True):
 
 if __name__ == '__main__':
     # evaluateTracker("Basketball/match5-c0")
-    _evalTracker("Laboratory/6p-c0", 'MEANSHIFT')
-    _evalTracker("Laboratory/6p-c0", 'CAMSHIFT')
+    _evalTracker("Laboratory/6p-c0", 'KCF')

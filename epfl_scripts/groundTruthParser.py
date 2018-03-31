@@ -31,6 +31,15 @@ def getDatasets():
     return datasets
 
 
+def getGroupedDatasets():
+    singles = getDatasets()
+    multis = {}
+    for single in singles:
+        multi = single[0:single.rfind('-') + 1]
+        multis.setdefault(multi, []).append(single)
+    return multis.values()
+
+
 def getVideo(dataset):
     """
     Returns the video of the dataset provided
@@ -74,3 +83,7 @@ def getGroundTruth(dataset):
         data.setdefault(int(frame_number), {})[int(track_id)] = [int(xmin), int(ymin), int(xmax), int(ymax), lost == '1', occluded == '1', generated == '1', label]
         track_ids.add(int(track_id))
     return track_ids, data
+
+
+if __name__ == "__main__":
+    print getGroupedDatasets()
