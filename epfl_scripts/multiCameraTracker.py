@@ -5,18 +5,87 @@ import cv2
 
 from colorUtility import getColors
 from cv2Trackers import getTracker, getTrackers
-from groundTruthParser import getGroundTruth, getVideo, getGroupedDatasets
+from groundTruthParser import getGroundTruth, getVideo, getGroupedDatasets, getCalibrationMatrix
 
-WIN_NAME = "Tracking_"
+WIN_NAME = "Tracking"
 
 
-def mergeAllPredictions(previous, prediction, groupDataset):
+def mergeAllPredictions(previous, predictions, groupDataset):
     newPredictions = {}
 
+    average = {}
+    weights = {}
+
     for dataset in groupDataset:
-        newPredictions[dataset] = prediction[dataset]
+        # create average center
+        if predictions[dataset] is None:
+            continue
+
+        ok, bbox = predictions[dataset]
+
+        if not ok:
+            continue
+
+        calib = getCalibrationMatrix(dataset)
+
+        average[dataset] = homogeneous(np.dot(calib, [bbox[0] + bbox[2] / 2., bbox[1] + bbox[3] * 0.95, 1.]))
+        weights[dataset] = 1 if previous[dataset][0] is not None else 100
+
+    if len(average) > 0:
+        averaged = np.average(average.values(), 0, weights.values()).tolist()
+        averaged.append(1)
+
+    for dataset in groupDataset:
+        # set final prediction
+        newPredictions[dataset] = predictions[dataset]
+
+        if len(average) == 0:
+            continue
+
+        if predictions[dataset] is None:
+            bbox = [0, 0, 100, 200]
+        else:
+            ok, bbox = predictions[dataset]
+
+            if not ok:
+                bbox = [0, 0, 100, 200]
+
+        center = homogeneous(np.linalg.inv(getCalibrationMatrix(dataset)).dot(averaged))
+
+        print "difference:", center[0] - (bbox[0] + bbox[2] / 2.), center[1] - (bbox[1] + bbox[3] * 0.95)
+
+        newPredictions[dataset] = (True, (int(center[0] - bbox[2] / 2.), int(center[1] - bbox[3] * 0.95), bbox[2], bbox[3]))
 
     return newPredictions
+
+
+def homogeneous(p):
+    return np.true_divide(p[0:2], p[2])
+
+
+def fixbbox(frame, (ok, bbox)):
+    height, width, colors = frame.shape
+    newbbox = [0, 0, 0, 0]
+
+    # (0 <= roi.x && 0 <= roi.width && roi.x + roi.width <= m.cols && 0 <= roi.y && 0 <= roi.height && roi.y + roi.height <= m.rows)
+    if not ok \
+            or bbox[2] <= 0 \
+            or bbox[0] + bbox[2] > width \
+            or bbox[3] <= 0 \
+            or bbox[1] + bbox[3] > height:
+        # bad bbox
+        return False, newbbox
+
+    newbbox = list(bbox)
+
+    if bbox[0] < 0:
+        newbbox[0] = 0
+        newbbox[2] += bbox[0] * 2
+    if bbox[1] < 0:
+        newbbox[1] = 0
+        newbbox[3] += bbox[1] * 2
+
+    return True, tuple(newbbox)
 
 
 def evalMultiTracker(groupDataset, tracker_type, display=True):
@@ -84,7 +153,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                     # Update tracker
                     tracker = trackers[id][dataset][0]
                     if tracker is not None:
-                        predictions[dataset] = trackers[id][dataset][0].update(frames[dataset])
+                        predictions[dataset] = tracker.update(frames[dataset])
 
             predictions = mergeAllPredictions(trackers[id], predictions, groupDataset)
 
@@ -92,12 +161,16 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                 if predictions[dataset] is None or trackers[id][dataset] is None:
                     continue
 
-                ok, bbox = predictions[dataset]
+                ok, bbox = fixbbox(frames[dataset], predictions[dataset])
 
                 if ok:
                     tracker = getTracker(tracker_type)
-                    if not tracker.init(frames[dataset], bbox): print "tracker init failed"
+                    try:
+                        tracker.init(frames[dataset], bbox)
+                    except BaseException:
+                        pass
                     trackers[id][dataset][0] = tracker
+
                 else:
                     trackers[id][dataset][0] = None
                 trackers[id][dataset][1] = ok
@@ -162,6 +235,6 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
 if __name__ == '__main__':
     dataset = getGroupedDatasets()[4]
     print(getGroupedDatasets())
-    tracker = getTrackers()[1]
+    tracker = getTrackers()[0]
 
     evalMultiTracker(dataset, tracker)

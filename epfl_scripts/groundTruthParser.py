@@ -85,5 +85,16 @@ def getGroundTruth(dataset):
     return track_ids, data
 
 
+def getCalibrationMatrix(dataset):
+    if dataset == 'Laboratory/6p-c0':
+        return [[0.176138, 0.647589, -63.412272], [-0.180912, 0.622446, -0.125533], [-0.000002, 0.001756, 0.102316]]
+    elif dataset == 'Laboratory/6p-c1':
+        return [[0.177291, 0.004724, 31.224545], [0.169895, 0.661935, -79.781865], [-0.000028, 0.001888, 0.054634]]
+    elif dataset == 'Laboratory/6p-c2':
+        return [[-0.104843, 0.099275, 50.734500], [0.107082, 0.102216, 7.822562], [-0.000054, 0.001922, -0.068053]]
+    elif dataset == 'Laboratory/6p-c3':
+        return [[-0.142865, 0.553150, -17.395045], [-0.125726, 0.039770, 75.937144], [-0.000011, 0.001780, 0.015675]]
+
+
 if __name__ == "__main__":
     print getGroupedDatasets()
