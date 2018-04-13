@@ -115,4 +115,4 @@ if __name__ == '__main__':
     generateVideo("Laboratory/6p-c0", 'CAMSHIFT')
     generateVideo("Laboratory/6p-c0", 'MEANSHIFT')
 
-    #generateAll()
+    # generateAll()

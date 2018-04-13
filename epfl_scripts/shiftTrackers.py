@@ -13,6 +13,7 @@ class MeanShiftTracker:
     """
     Meanshift tracker implementation to use as a cv2 tracker.
     """
+
     def __init__(self):
         self.roi_hist = None
         self.term_crit = None
@@ -46,6 +47,7 @@ class CAMshiftTracker:
     """
     CAMshift tracker implementation to use as a cv2 tracker.
     """
+
     def __init__(self):
         self.roi_hist = None
         self.term_crit = None
@@ -168,5 +170,5 @@ if __name__ == '__main__':
     name = "Campus/campus4-c0"
     name = "Laboratory/6p-c0"
 
-    #evaluateMeanShift(name)
+    # evaluateMeanShift(name)
     evaluateCAMshift(name)

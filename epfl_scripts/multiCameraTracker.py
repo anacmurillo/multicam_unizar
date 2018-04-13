@@ -28,8 +28,10 @@ def mergeAllPredictions(previous, predictions, groupDataset):
 
         calib = getCalibrationMatrix(dataset)
 
-        average[dataset] = homogeneous(np.dot(calib, [bbox[0] + bbox[2] / 2., bbox[1] + bbox[3] * 0.95, 1.]))
-        weights[dataset] = 1 if previous[dataset][0] is not None else 100
+        CENTER = 0.95
+
+        average[dataset] = homogeneous(np.dot(calib, [bbox[0] + bbox[2] / 2., bbox[1] + bbox[3] * CENTER, 1.]))
+        weights[dataset] = 1 if previous[dataset][0] is not None else 1
 
     if len(average) > 0:
         averaged = np.average(average.values(), 0, weights.values()).tolist()
@@ -52,9 +54,9 @@ def mergeAllPredictions(previous, predictions, groupDataset):
 
         center = homogeneous(np.linalg.inv(getCalibrationMatrix(dataset)).dot(averaged))
 
-        print "difference:", center[0] - (bbox[0] + bbox[2] / 2.), center[1] - (bbox[1] + bbox[3] * 0.95)
+        # print "difference:", center[0] - (bbox[0] + bbox[2] / 2.), center[1] - (bbox[1] + bbox[3] * CENTER)
 
-        newPredictions[dataset] = (True, (int(center[0] - bbox[2] / 2.), int(center[1] - bbox[3] * 0.95), bbox[2], bbox[3]))
+        newPredictions[dataset] = (True, (int(center[0] - bbox[2] / 2.), int(center[1] - bbox[3] * CENTER), bbox[2], bbox[3]))
 
     return newPredictions
 
@@ -72,7 +74,9 @@ def fixbbox(frame, (ok, bbox)):
             or bbox[2] <= 0 \
             or bbox[0] + bbox[2] > width \
             or bbox[3] <= 0 \
-            or bbox[1] + bbox[3] > height:
+            or bbox[1] + bbox[3] > height \
+            or bbox[0] < 0 \
+            or bbox[1] < 0:
         # bad bbox
         return False, newbbox
 

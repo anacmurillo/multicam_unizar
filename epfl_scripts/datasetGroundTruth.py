@@ -30,28 +30,47 @@ def evalFile(filename):
         colors[track_id] = colors_list[i]
 
     # read video
+    images = []
     vidcap = cv2.VideoCapture(video_folder + filename + ".avi")
     success, image = vidcap.read()
-    if not success:
-        print "invalid video"
-        return
     frame = 0
-    windowlabel = filename + ".jpg"
     while success:
         # draw rectangles
         for id in track_ids:
             xmin, ymin, xmax, ymax, lost, occluded, generated, label = data[frame][id]
             if not lost:
                 cv2.rectangle(image, (xmin, ymin), (xmax, ymax), colors[id], 1)
-
-        cv2.imshow(windowlabel, image)
-        k = cv2.waitKey(1) & 0xff
-        if k == 27:
-            break
+        cv2.putText(image, str(frame), (0, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (1, 1, 1), 1)
+        images.append(image)
         success, image = vidcap.read()
         frame += 1
-    if not success and frame in data:
-        print len(data), "frames parsed (datafile), but", frame, "shown (video)"
+
+    frame = 0
+    windowlabel = filename + ".jpg"
+    while True:
+
+        cv2.imshow(windowlabel, images[frame])
+        k = cv2.waitKey(0) & 0xff
+        if k == 27:
+            break
+        elif k == 83:
+            frame += 1
+        elif k == 81:
+            frame -= 1
+        elif k == 82:
+            frame += 10
+        elif k == 84:
+            frame -= 10
+        elif k == 80:
+            frame = 0
+        elif k == 87:
+            frame = len(images) - 1
+        elif 49 <= k <= 57:
+            frame = int(len(images) * (k-48)/10.)
+        else:
+            print "pressed", k
+        frame = max(0, min(len(images) - 1, frame))
+
     cv2.destroyWindow(windowlabel)
 
 
@@ -65,6 +84,6 @@ def runAll():
 
 
 if __name__ == '__main__':
-    #runAll()
-    evalFile("Terrace/terrace1-c0")
+    # runAll()
+    evalFile("Laboratory/6p-c3")
     # evaluateTracker("Basketball/match5-c0")
