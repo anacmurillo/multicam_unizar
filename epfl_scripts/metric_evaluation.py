@@ -7,8 +7,8 @@ import matplotlib.patches as pltpatches
 import matplotlib.pyplot as plt
 import matplotlib.ticker as pltticker
 
-from cv2Trackers import evaluateTracker
-from groundTruthParser import getGroundTruth
+from epfl_scripts.Utilities.cv2Trackers import evaluateTracker
+from epfl_scripts.Utilities.groundTruthParser import getGroundTruth
 
 threshold_range = 100
 

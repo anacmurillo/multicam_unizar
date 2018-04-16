@@ -6,7 +6,7 @@ import sys
 
 import cv2
 
-from colorUtility import getColors
+from epfl_scripts.Utilities.colorUtility import getColors
 
 filename = "/home/jaguilar/Abel/epfl/dataset/CVLAB/Basketball/match5-c0.avi"
 

@@ -12,10 +12,10 @@ import sys
 
 import cv2
 
-from colorUtility import getColors
-from customVisor import Visor
-from groundTruthParser import getGroundTruth, getVideo
-from shiftTrackers import CAMshiftTracker, MeanShiftTracker
+from epfl_scripts.Utilities.colorUtility import getColors
+from epfl_scripts.Utilities.customVisor import Visor
+from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getVideo
+from epfl_scripts.shiftTrackers import CAMshiftTracker, MeanShiftTracker
 
 WIN_NAME = "Tracking"
 

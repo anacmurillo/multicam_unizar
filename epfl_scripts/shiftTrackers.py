@@ -6,7 +6,7 @@ import numpy as np
 
 import cv2
 
-from groundTruthParser import getVideo
+from epfl_scripts.Utilities.groundTruthParser import getVideo
 
 
 class MeanShiftTracker:

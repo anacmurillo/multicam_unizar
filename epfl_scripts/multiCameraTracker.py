@@ -3,10 +3,10 @@ import sys
 
 import cv2
 
-from colorUtility import getColors
-from customVisor import Visor
-from cv2Trackers import getTracker, getTrackers
-from groundTruthParser import getGroundTruth, getVideo, getGroupedDatasets, getCalibrationMatrix
+from epfl_scripts.Utilities.colorUtility import getColors
+from epfl_scripts.Utilities.customVisor import Visor
+from epfl_scripts.Utilities.cv2Trackers import getTracker, getTrackers
+from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getVideo, getGroupedDatasets, getCalibrationMatrix
 
 WIN_NAME = "Tracking"
 
