@@ -10,8 +10,8 @@ ESC: stop
 
 Normal usage:
 
-visor = Visor()
-while _somehing_ and visor.hasFinished():
+visor = Visor(_windowLabel_)
+while _something_ and not visor.hasFinished():
     visor.imshow(_frame_)
 visor.finish() # pass False to keep the visor until the user closes it, otherwise it will be automatically closed
 
@@ -44,13 +44,13 @@ class Visor:
     def imshow(self, frame):
         self.frames.append(frame)
         self.nFrames += 1
-        print "added frame", self.nFrames
+        # print "added frame", self.nFrames
 
     def hasFinished(self):
         return self.finished
 
-    def finish(self, forceFinish=True):
-        if forceFinish:
+    def finish(self):
+        if self.auto or self.nFrames == 0:
             self.finished = True
         while not self.finished:
             time.sleep(1)
@@ -59,12 +59,12 @@ class Visor:
         self.dispFrame = 0
         last_frame = -1
 
-        while self.nFrames == 0:
+        while self.nFrames == 0 and not self.finished:
             time.sleep(1)
 
         while not self.finished:
             local_nFrames = self.nFrames
-            print "displaying frame", self.dispFrame, "/", local_nFrames, "AUTO" if self.auto else "MANUAL"
+            # print "displaying frame", self.dispFrame, "/", local_nFrames, "AUTO" if self.auto else "MANUAL"
 
             if self.auto:
                 if last_frame != local_nFrames - 1:
@@ -99,7 +99,8 @@ class Visor:
             self.dispFrame = max(0, min(self.dispFrame, local_nFrames))
             self.auto = self.dispFrame == local_nFrames
 
-        cv2.destroyWindow(self.LABEL)
+        if last_frame != -1:
+            cv2.destroyWindow(self.LABEL)
         self.finished = True
 
 

@@ -13,6 +13,7 @@ import sys
 import cv2
 
 from colorUtility import getColors
+from customVisor import Visor
 from groundTruthParser import getGroundTruth, getVideo
 from shiftTrackers import CAMshiftTracker, MeanShiftTracker
 
@@ -124,6 +125,10 @@ def _evalTracker(dataset, tracker_type, display=True):
     # initialize detection set
     data_detected = {}
 
+    # visor
+    if display:
+        visor = Visor(WIN_NAME)
+
     frame_index = 0
     while ok:
 
@@ -164,13 +169,8 @@ def _evalTracker(dataset, tracker_type, display=True):
 
         if display:
             # Display result
-            cv2.imshow(WIN_NAME, frame)
+            visor.imshow(frame)
 
-            # Exit if ESC pressed
-            k = cv2.waitKey(1) & 0xff
-            if k == 27:
-                frame_index += 1
-                break
         else:
             if sys.stdout.isatty():
                 sys.stdout.write("\r" + str(frame_index) + " ")
@@ -178,11 +178,13 @@ def _evalTracker(dataset, tracker_type, display=True):
 
         # Read a new frame
         ok, frame = video.read()
+        if display:
+            ok = ok and not visor.hasFinished()
         frame_index += 1
 
     print ""
     if display:
-        cv2.destroyWindow(WIN_NAME)
+        visor.finish()
     video.release()
 
     return frame_index, data_detected
