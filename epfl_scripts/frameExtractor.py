@@ -28,12 +28,16 @@ def extract(dataset):
     ok, frame = video.read()
     while ok:
         cv2.imwrite(folder + str(index) + ".jpg", frame)
-
-        print dataset, index
         index += 1
         ok, frame = video.read()
+    return index
 
 
 if __name__ == "__main__":
+    log = open(BASEFOLDER + "datasets.txt", "w")
     for dataset in getDatasets():
-        extract(dataset)
+        print dataset, "..."
+        frames = extract(dataset)
+        print "...", frames
+        log.write(dataset + "," + str(frames)+"\n")
+    log.close()
