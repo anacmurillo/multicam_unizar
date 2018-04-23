@@ -219,12 +219,13 @@ def getTrackType(ids, frames, groundtruth, tracker):
 def f_iou(boxA, boxB):
     """
     IOU (Intersection over Union) of both boxes.
-    :return: value between [0.1]. 0 if disjointed bboxes, 1 if equal bboxes
+    :return: value in range [0,1]. 0 if disjointed bboxes, 1 if equal bboxes
     """
     intersection = f_area([max(boxA[0], boxB[0]), max(boxA[1], boxB[1]), min(boxA[2], boxB[2]), min(boxA[3], boxB[3])])
 
     union = f_area(boxA) + f_area(boxB) - intersection
-
+    if union == 0:
+        print boxA, boxB, intersection
     return intersection / union
 
 

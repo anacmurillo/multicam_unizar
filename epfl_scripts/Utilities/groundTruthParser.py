@@ -17,6 +17,7 @@ import cv2  # opencv
 
 groundtruth_folder = "/home/jaguilar/Abel/epfl/dataset/merayxu-multiview-object-tracking-dataset-d2990e227c57/EPFL/"
 video_folder = "/home/jaguilar/Abel/epfl/dataset/CVLAB/"
+superDetector_folder = "/home/jaguilar/Abel/epfl/dataset/superDetector/"
 
 
 def getDatasets():
@@ -94,6 +95,26 @@ def getCalibrationMatrix(dataset):
         return [[-0.104843, 0.099275, 50.734500], [0.107082, 0.102216, 7.822562], [-0.000054, 0.001922, -0.068053]]
     elif dataset == 'Laboratory/6p-c3':
         return [[-0.142865, 0.553150, -17.395045], [-0.125726, 0.039770, 75.937144], [-0.000011, 0.001780, 0.015675]]
+
+
+def getSuperDetector(dataset):
+    path = superDetector_folder + dataset + ".txt"
+
+    # create data for each frame
+    reader = csv.reader(open(path), delimiter=' ')
+    data = {}
+    max_frame = -1
+    for frame_number, xmin, ymin, xmax, ymax in reader:
+        data.setdefault(int(frame_number), []).append([s2f2i(xmin), s2f2i(ymin), s2f2i(xmax), s2f2i(ymax)])
+        max_frame = max(max_frame, int(frame_number))
+    for i in range(max_frame+1):
+        if i not in data:
+            data[i] = []
+    return data
+
+
+def s2f2i(f):
+    return int(round(float(f)))
 
 
 if __name__ == "__main__":
