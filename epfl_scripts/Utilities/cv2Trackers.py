@@ -10,12 +10,14 @@ for tracker in getTrackers():
 """
 import sys
 
-import cv2
-
 from epfl_scripts.Utilities.colorUtility import getColors
-from epfl_scripts.Utilities.customVisor import Visor
+from epfl_scripts.Utilities.customVisor import cv2Visor
 from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getVideo
 from epfl_scripts.shiftTrackers import CAMshiftTracker, MeanShiftTracker
+
+# import cv2
+
+cv2 = cv2Visor()
 
 WIN_NAME = "Tracking"
 
@@ -125,10 +127,6 @@ def _evalTracker(dataset, tracker_type, display=True):
     # initialize detection set
     data_detected = {}
 
-    # visor
-    if display:
-        visor = Visor(WIN_NAME)
-
     frame_index = 0
     while ok:
 
@@ -169,8 +167,13 @@ def _evalTracker(dataset, tracker_type, display=True):
 
         if display:
             # Display result
-            visor.imshow(frame)
+            cv2.imshow(WIN_NAME, frame)
 
+            # Exit if ESC pressed
+            k = cv2.waitKey(1) & 0xff
+            if k == 27:
+                frame_index += 1
+                break
         else:
             if sys.stdout.isatty():
                 sys.stdout.write("\r" + str(frame_index) + " ")
@@ -178,13 +181,11 @@ def _evalTracker(dataset, tracker_type, display=True):
 
         # Read a new frame
         ok, frame = video.read()
-        if display:
-            ok = ok and not visor.hasFinished()
         frame_index += 1
 
     print ""
     if display:
-        visor.finish()
+        cv2.destroyWindow(WIN_NAME)
     video.release()
 
     return frame_index, data_detected

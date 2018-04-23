@@ -1,14 +1,17 @@
 import numpy as np
 import sys
 
-import cv2
-
 from epfl_scripts.Utilities.colorUtility import getColors
-from epfl_scripts.Utilities.customVisor import Visor
+from epfl_scripts.Utilities.customVisor import cv2Visor
 from epfl_scripts.Utilities.cv2Trackers import getTracker, getTrackers
 from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getVideo, getGroupedDatasets, getCalibrationMatrix
 
+# import cv2
+
 WIN_NAME = "Tracking"
+
+
+cv2 = cv2Visor()
 
 
 def mergeAllPredictions(previous, predictions, groupDataset):
@@ -138,10 +141,6 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
     # initialize detection set
     data_detected = {}
 
-    #initialize visor
-    if display:
-        visor = Visor(WIN_NAME)
-
     frame_index = 0
     allOk = True
     while allOk:
@@ -214,7 +213,12 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                 else:
                     concatenatedFrames = np.hstack((concatenatedFrames, frames[dataset]))
 
-            visor.imshow(concatenatedFrames)
+            cv2.imshow(WIN_NAME, concatenatedFrames)
+            # Exit if ESC pressed
+            k = cv2.waitKey(1) & 0xff
+            if k == 27:
+                frame_index += 1
+                break
         else:
             if sys.stdout.isatty():
                 sys.stdout.write("\r" + str(frame_index) + " ")
@@ -224,14 +228,12 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
             # Read a new frame
             ok, frames[dataset] = videos[dataset].read()
             allOk = allOk and ok
-        if display:
-            allOk = allOk and not visor.hasFinished()
 
         frame_index += 1
 
     print ""
     if display:
-        visor.finish()
+        cv2.destroyAllWindows()
     for dataset in groupDataset:
         videos[dataset].release()
 

@@ -10,109 +10,92 @@ ESC: stop
 
 Normal usage:
 
-visor = Visor(_windowLabel_)
-while _something_ and not visor.hasFinished():
-    visor.imshow(_frame_)
-visor.finish() # pass False to keep the visor until the user closes it, otherwise it will be automatically closed
+cv2 = cv2Visor()
+
+# rest of the code. The object will act as the cv2 package, no other changes are required.
 
 """
-import time
-from threading import Thread
-
-import cv2
 
 from epfl_scripts.Utilities.groundTruthParser import getVideo, getDatasets
 
 
-class Visor:
-    frames = []
-    nFrames = 0
-    dispFrame = 0
-    finished = False
-    auto = True
-
+class cv2Visor():
+    # CONF
+    MAXSAVED = 25
     LABEL = "custom Visor"
-    FPS = 60
 
-    def __init__(self, label="custom Visor", fps=60):
-        self.LABEL = label
-        self.FPS = fps
-        t = Thread(target=self.main)
-        t.daemon = True
-        t.start()
+    frames = []
+    local_cv2 = None
 
-    def imshow(self, frame):
-        self.frames.append(frame)
-        self.nFrames += 1
-        # print "added frame", self.nFrames
+    def __init__(self):
+        import cv2 as local_cv2
+        self.local_cv2 = local_cv2
 
-    def hasFinished(self):
-        return self.finished
+    def configure(self, max_saved):
+        self.MAXSAVED = max_saved
 
-    def finish(self):
-        if self.auto or self.nFrames == 0:
-            self.finished = True
-        while not self.finished:
-            time.sleep(1)
+    # Override
+    def imshow(self, winname, mat):
+        self.local_cv2.imshow(winname, mat)
+        self.LABEL = winname
+        if len(self.frames) >= self.MAXSAVED:
+            self.frames.pop(0)
+        self.frames.append(mat)
 
-    def main(self):
-        self.dispFrame = 0
-        last_frame = -1
+    #Override
+    def waitKey(self, delay):
 
-        while self.nFrames == 0 and not self.finished:
-            time.sleep(1)
+        repeat = False
+        index = len(self.frames)
 
-        while not self.finished:
-            local_nFrames = self.nFrames
-            # print "displaying frame", self.dispFrame, "/", local_nFrames, "AUTO" if self.auto else "MANUAL"
+        while True:
 
-            if self.auto:
-                if last_frame != local_nFrames - 1:
-                    cv2.imshow(self.LABEL, self.frames[local_nFrames - 1])
-                    last_frame = local_nFrames - 1
-                self.dispFrame = local_nFrames
-            else:
-                if last_frame != self.dispFrame:
-                    cv2.imshow(self.LABEL, self.frames[self.dispFrame])
-                    last_frame = self.dispFrame
-
-            k = cv2.waitKey(1000 / self.FPS) & 0xff
+            k = self.local_cv2.waitKey(delay if not repeat else 0) & 0xff
 
             if k == 27:  # ESC
                 break
             elif k == 83 or k == 100:  # right, d
-                self.dispFrame += 1
+                index += 1
             elif k == 81 or k == 97:  # left, a
-                self.dispFrame -= 1
+                index -= 1
             elif k == 82 or k == 119:  # up, w
-                self.dispFrame += 10
+                index += 10
             elif k == 84 or k == 115:  # down, s
-                self.dispFrame -= 10
+                index -= 10
             elif k == 80:  # start
-                self.dispFrame = 0
+                index = 0
             elif k == 87:  # end
-                self.dispFrame = local_nFrames
+                index = len(self.frames) - 1
             elif 49 <= k <= 57:  # 1-9 keys
-                self.dispFrame = int(local_nFrames * (k - 48) / 10.)
+                index = int(len(self.frames) * (k - 48) / 10.)
             elif k != 255:  # other
                 print "pressed", k
-            self.dispFrame = max(0, min(self.dispFrame, local_nFrames))
-            self.auto = self.dispFrame == local_nFrames
 
-        if last_frame != -1:
-            cv2.destroyWindow(self.LABEL)
-        self.finished = True
+            if index < len(self.frames) or repeat:
+                repeat = True
+                index = max(0, min(index, len(self.frames) - 1))
+                self.local_cv2.imshow(self.LABEL, self.frames[index])
+            else:
+                break
 
+        return k if not repeat else 255
+
+    #Redirect everything else
+    def __getattr__(self, name):
+        return getattr(self.local_cv2, name)
 
 if __name__ == "__main__":
-    visor = Visor()
+    cv2 = cv2Visor()
 
     video = getVideo(getDatasets()[0])
     ok, image = video.read()
-    while ok and not visor.hasFinished():
+    while ok:
         ok, frame = video.read()
 
-        visor.imshow(frame)
-        time.sleep(0.1)
-
-    visor.finish()
+        cv2.imshow("TEST", frame)
+        k = cv2.waitKey(100) & 0xff
+        if k == 27:
+            break
+        elif k != 255:
+            print k
+    cv2.destroyWindow("TEST")
