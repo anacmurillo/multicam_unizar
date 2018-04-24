@@ -10,14 +10,11 @@ for tracker in getTrackers():
 """
 import sys
 
+# import cv2
+import epfl_scripts.Utilities.cv2Visor as cv2
 from epfl_scripts.Utilities.colorUtility import getColors
-from epfl_scripts.Utilities.customVisor import cv2Visor
 from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getVideo
 from epfl_scripts.shiftTrackers import CAMshiftTracker, MeanShiftTracker
-
-# import cv2
-
-cv2 = cv2Visor()
 
 WIN_NAME = "Tracking"
 

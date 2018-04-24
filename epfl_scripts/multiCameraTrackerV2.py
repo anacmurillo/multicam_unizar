@@ -1,13 +1,10 @@
 import numpy as np
 import sys
 
-from epfl_scripts.Utilities.customVisor import cv2Visor
+# import cv2
+import epfl_scripts.Utilities.cv2Visor as cv2
 from epfl_scripts.Utilities.cv2Trackers import getTracker, getTrackers
 from epfl_scripts.Utilities.groundTruthParser import getVideo, getGroupedDatasets, getSuperDetector
-
-# import cv2
-
-cv2 = cv2Visor()
 
 WIN_NAME = "Tracking"
 

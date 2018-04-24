@@ -1,17 +1,13 @@
 import numpy as np
 import sys
 
+# import cv2
+import epfl_scripts.Utilities.cv2Visor as cv2
 from epfl_scripts.Utilities.colorUtility import getColors
-from epfl_scripts.Utilities.customVisor import cv2Visor
 from epfl_scripts.Utilities.cv2Trackers import getTracker, getTrackers
 from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getVideo, getGroupedDatasets, getCalibrationMatrix
 
-# import cv2
-
 WIN_NAME = "Tracking"
-
-
-cv2 = cv2Visor()
 
 
 def mergeAllPredictions(previous, predictions, groupDataset):

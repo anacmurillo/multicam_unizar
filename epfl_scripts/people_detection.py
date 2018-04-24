@@ -1,8 +1,6 @@
 # import cv2
-from epfl_scripts.Utilities.customVisor import cv2Visor
+import epfl_scripts.Utilities.cv2Visor as cv2
 from epfl_scripts.Utilities.groundTruthParser import getVideo
-
-cv2 = cv2Visor()
 
 def inside(r, q):
     rx, ry, rw, rh = r
