@@ -34,7 +34,7 @@ def f_area(bbox):
 
 
 def mergeAllPredictions(predictions, ids, detector, groupDataset):
-    # predictions[dataset][id] = [ tracker, (ok, bbox), framesLost, {add as neccesary} ]
+    # predictions[dataset][id] = [ tracker, bbox, framesLost, {add as neccesary} ]
     # for id in ids: etc
     # detector[dataset] = [ (bbox), ... ]
     # for dataset in groupDataset: etc
@@ -44,8 +44,8 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
     # update bboxes
     for dataset in groupDataset:
         for id in ids:
-            tracker, (ok, bbox), framesLost = predictions[dataset][id]
-            if tracker is None or not ok: continue
+            tracker, bbox, framesLost = predictions[dataset][id]
+            if bbox is None: continue
 
             # find closest detector to tracker
             bestBbox = bbox
@@ -63,32 +63,33 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
 
             # update frame
             if framesLost < 10:
-                predictions[dataset][id] = [tracker, (True, bestBbox), framesLost]
+                predictions[dataset][id] = [tracker, bestBbox, framesLost]
                 pos3d.append((to3dWorld(dataset, bestBbox), id))
             else:
-                predictions[dataset][id] = [None, (False, (0, 0, 0, 0)), 0]
+                predictions[dataset][id] = [tracker, None, 0]
 
     # update ids
     for dataset in groupDataset:
         for id in ids:
-            tracker, (ok, bbox), framesLost = predictions[dataset][id]
-            if tracker is None or not ok: continue
+            tracker, bbox, framesLost = predictions[dataset][id]
+            if bbox is None: continue
 
             # find closest other id
             bestId = None
             bestDist = 10
             for id2 in ids:
-                if predictions[dataset][id2][0] is not None: continue
+                if predictions[dataset][id2][1] is not None: continue
                 for dataset2 in groupDataset:
                     if id == id2 and dataset == dataset2: continue
+                    if predictions[dataset2][id2][1] is None: continue
 
-                    dist = f_euclidian(to3dWorld(dataset2, predictions[dataset2][id2][1][1]), to3dWorld(dataset, bbox))
+                    dist = f_euclidian(to3dWorld(dataset2, predictions[dataset2][id2][1]), to3dWorld(dataset, bbox))
                     if dist < bestDist:
                         bestId = id2
                         bestDist = dist
             if bestId is not None:
                 predictions[dataset][bestId] = predictions[dataset][id]
-                predictions[dataset][id] = [None, (False, (0, 0, 0, 0)), 0]
+                predictions[dataset][id] = [None, None, 0]
 
     # assign detections
     for dataset in groupDataset:
@@ -114,24 +115,24 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
                 closestid = maxid + 1
                 for dataset2 in groupDataset:
                     if dataset == dataset2: continue
-                    predictions[dataset2][closestid] = [None, (False, (0, 0, 0, 0)), 0]
-                ids.append(closestid)
-            if closestid in predictions[dataset] and predictions[dataset][closestid][0] is not None:
+                    predictions[dataset2][closestid] = [None, None, 0]
+                if closestid not in ids: ids.append(closestid)
+            if closestid in predictions[dataset] and predictions[dataset][closestid][1] is not None:
                 print "Overrided previous data"
-            predictions[dataset][closestid] = [None, (True, bbox), 0]
+            predictions[dataset][closestid] = [None, bbox, 0]
 
     # calculate dispersion of each id
     for id in ids:
         maxdist = 0
         points = 0
         for i, dataset in enumerate(groupDataset):
-            if predictions[dataset][id][0] is None: continue
+            if predictions[dataset][id][1] is None: continue
             points += 1
             for dataset2 in groupDataset[0:i]:
                 if dataset == dataset2: continue
-                if predictions[dataset2][id][0] is None: continue
+                if predictions[dataset2][id][1] is None: continue
 
-                dist = f_euclidian(to3dWorld(dataset, predictions[dataset][id][1][1]), to3dWorld(dataset2, predictions[dataset2][id][1][1]))
+                dist = f_euclidian(to3dWorld(dataset, predictions[dataset][id][1]), to3dWorld(dataset2, predictions[dataset2][id][1]))
                 if dist > maxdist:
                     maxdist = dist
 
@@ -166,20 +167,20 @@ def homogeneous(p):
     return np.true_divide(p[0:2], p[2])
 
 
-def fixbbox(frame, (ok, bbox)):
+def fixbbox(frame, bbox):
+    if bbox is None: return None
+
     height, width, colors = frame.shape
-    newbbox = [0, 0, 0, 0]
 
     # (0 <= roi.x && 0 <= roi.width && roi.x + roi.width <= m.cols && 0 <= roi.y && 0 <= roi.height && roi.y + roi.height <= m.rows)
-    if not ok \
-            or bbox[2] <= 0 \
+    if bbox[2] <= 0 \
             or bbox[0] + bbox[2] > width \
             or bbox[3] <= 0 \
             or bbox[1] + bbox[3] > height \
             or bbox[0] < 0 \
             or bbox[1] < 0:
         # bad bbox
-        return False, newbbox
+        return None
 
     newbbox = list(bbox)
 
@@ -190,7 +191,7 @@ def fixbbox(frame, (ok, bbox)):
         newbbox[1] = 0
         newbbox[3] += bbox[1] * 2
 
-    return True, tuple(newbbox)
+    return tuple(newbbox)
 
 
 def evalMultiTracker(groupDataset, tracker_type, display=True):
@@ -249,7 +250,8 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                 tracker = predictions[dataset][id][0]
                 if tracker is not None:
                     # get tracker prediction
-                    predictions[dataset][id][1] = tracker.update(frames[dataset])
+                    ok, bbox = tracker.update(frames[dataset])
+                    predictions[dataset][id][1] = bbox if ok else None
 
         # merge all predictions
         predictions, ids = mergeAllPredictions(predictions, ids, detector[frame_index], groupDataset)
@@ -257,23 +259,27 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
         # initialize new trackers
         for dataset in groupDataset:
             for id in ids:
-                ok, bbox = fixbbox(frames[dataset], predictions[dataset][id][1])
+                bbox = fixbbox(frames[dataset], predictions[dataset][id][1])
+                predictions[dataset][id][1] = bbox
 
-                if ok:
+                if bbox is not None:
+                    # intialize tracker
                     tracker = getTracker(tracker_type)
                     try:
                         tracker.init(frames[dataset], bbox)
                         predictions[dataset][id][0] = tracker
-                        predictions[dataset][id][1] = (ok, bbox)
                     except BaseException:
                         print "Error on tracker init"
+                else:
+                    # invalid bbox, remove old tracker
+                    predictions[dataset][id][0] = None
 
         # Show bounding boxes
         for dataset in groupDataset:
             data_detected[dataset][frame_index] = {}
             for id in ids:
-                ok, bbox = predictions[dataset][id][1]
-                if not ok: continue
+                bbox = predictions[dataset][id][1]
+                if bbox is None: continue
 
                 # show bbox
                 p1 = (int(bbox[0]), int(bbox[1]))
