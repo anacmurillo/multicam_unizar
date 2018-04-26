@@ -41,7 +41,7 @@ def mergeAllPredictions(previous, predictions, groupDataset):
         # set final prediction
         newPredictions[dataset] = predictions[dataset]
 
-        if len(average) == 0:
+        if len(average) <= 0:
             continue
 
         if predictions[dataset] is None:

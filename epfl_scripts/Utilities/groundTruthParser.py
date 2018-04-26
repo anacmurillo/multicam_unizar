@@ -95,6 +95,8 @@ def getCalibrationMatrix(dataset):
         return [[-0.104843, 0.099275, 50.734500], [0.107082, 0.102216, 7.822562], [-0.000054, 0.001922, -0.068053]]
     elif dataset == 'Laboratory/6p-c3':
         return [[-0.142865, 0.553150, -17.395045], [-0.125726, 0.039770, 75.937144], [-0.000011, 0.001780, 0.015675]]
+    else:
+        raise ValueError("calibration matrix not parsed for dataset '"+dataset+"'")
 
 
 def getSuperDetector(dataset):
@@ -103,11 +105,9 @@ def getSuperDetector(dataset):
     # create data for each frame
     reader = csv.reader(open(path), delimiter=' ')
     data = {}
-    max_frame = -1
     for frame_number, xmin, ymin, xmax, ymax in reader:
         data.setdefault(int(frame_number), []).append([s2f2i(xmin), s2f2i(ymin), s2f2i(xmax), s2f2i(ymax)])
-        max_frame = max(max_frame, int(frame_number))
-    for i in range(max_frame+1):
+    for i in range(int(getVideo(dataset).get(cv2.CAP_PROP_FRAME_COUNT))):
         if i not in data:
             data[i] = []
     return data

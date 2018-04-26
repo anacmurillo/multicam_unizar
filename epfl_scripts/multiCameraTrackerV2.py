@@ -1,10 +1,12 @@
+import math
 import numpy as np
 import sys
 
 # import cv2
 import epfl_scripts.Utilities.cv2Visor as cv2
+from epfl_scripts.Utilities.colorUtility import getColors
 from epfl_scripts.Utilities.cv2Trackers import getTracker, getTrackers
-from epfl_scripts.Utilities.groundTruthParser import getVideo, getGroupedDatasets, getSuperDetector
+from epfl_scripts.Utilities.groundTruthParser import getVideo, getGroupedDatasets, getSuperDetector, getCalibrationMatrix
 
 WIN_NAME = "Tracking"
 
@@ -37,11 +39,15 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
     # detector[dataset] = [ (bbox), ... ]
     # for dataset in groupDataset: etc
 
+    pos3d = []
+
+    # update bboxes
     for dataset in groupDataset:
         for id in ids:
             tracker, (ok, bbox), framesLost = predictions[dataset][id]
             if tracker is None or not ok: continue
 
+            # find closest detector to tracker
             bestBbox = bbox
             bestIoU = 0.5
             for detBbox in detector[dataset]:
@@ -55,20 +61,72 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
                 detector[dataset].remove(bestBbox)
                 framesLost = 0
 
+            # update frame
             if framesLost < 10:
                 predictions[dataset][id] = [tracker, (True, bestBbox), framesLost]
+                pos3d.append((to3dWorld(dataset, bestBbox), id))
             else:
                 predictions[dataset][id] = [None, (False, (0, 0, 0, 0)), 0]
 
-        id = max(ids + [-1]) + 1
+    # update ids
+    for dataset in groupDataset:
+        for id in ids:
+            tracker, (ok, bbox), framesLost = predictions[dataset][id]
+            if tracker is None or not ok: continue
+
+            # find closest other id
+            bestId = None
+            bestDist = 10
+            for id2 in ids:
+                if predictions[dataset][id2][0] is not None: continue
+                for dataset2 in groupDataset:
+                    if id == id2 and dataset == dataset2: continue
+
+                    dist = f_euclidian(to3dWorld(dataset2, predictions[dataset2][id2][1][1]), to3dWorld(dataset, bbox))
+                    if dist < bestDist:
+                        bestId = id2
+                        bestDist = dist
+            if bestId is not None:
+                predictions[dataset][bestId] = predictions[dataset][id]
+                predictions[dataset][id] = [None, (False, (0, 0, 0, 0)), 0]
+
+    # assign detections
+    for dataset in groupDataset:
         for bbox in detector[dataset]:
-            predictions[dataset][id] = [None, (True, bbox), 0]
-            for dataset2 in groupDataset:
-                if dataset == dataset2: continue
-                predictions[dataset2][id] = [None, (False, (0, 0, 0, 0)), 0]
-            ids.append(id)
-            id += 1
+
+            # find best id
+            closestid = -1
+            closestDist = 50
+            maxid = -1
+            assign = False
+
+            for point, id in pos3d:
+                dist = f_euclidian(point, to3dWorld(dataset, bbox))
+                if dist < closestDist:
+                    assign = True
+                    closestDist = dist
+                    closestid = id
+                if id > maxid:
+                    maxid = id
+
+            # assign new prediction
+            if not assign:
+                closestid = maxid + 1
+                for dataset2 in groupDataset:
+                    if dataset == dataset2: continue
+                    predictions[dataset2][closestid] = [None, (False, (0, 0, 0, 0)), 0]
+                ids.append(closestid)
+            if closestid in predictions[dataset] and predictions[dataset][closestid][0] is not None:
+                print "Overrided previous data"
+            predictions[dataset][closestid] = [None, (True, bbox), 0]
+
     return predictions, ids
+
+
+def to3dWorld(dataset, bbox):
+    calib = getCalibrationMatrix(dataset)
+
+    return homogeneous(np.dot(calib, [bbox[0] + bbox[2] / 2., bbox[1] + bbox[3], 1.]))
 
 
 def f_subtract(pointA, pointB):
@@ -77,6 +135,13 @@ def f_subtract(pointA, pointB):
 
 def f_center(bbox):
     return bbox[0] + bbox[2] / 2., bbox[1] + bbox[3] / 2.
+
+
+def f_euclidian(a, b):
+    """
+    returns the euclidian distance between the two points
+    """
+    return math.sqrt((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2)
 
 
 def homogeneous(p):
@@ -112,6 +177,9 @@ def fixbbox(frame, (ok, bbox)):
 
 def evalMultiTracker(groupDataset, tracker_type, display=True):
     detector = {}  # detector[dataset][frame][index]
+
+    # colors
+    colors = getColors(12)
 
     # parse detector
     for dataset in groupDataset:
@@ -194,7 +262,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                 p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
                 data_detected[dataset][frame_index][id] = [p1[0], p1[1], p2[0], p2[1]]  # xmin, ymin, xmax, ymax
                 if display:
-                    color = (255, 255, 255)
+                    color = colors[id % 12]
                     cv2.rectangle(frames[dataset], p1, p2, color, 2, 1)
                     cv2.putText(frames[dataset], str(id), p1, cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
@@ -238,6 +306,6 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
 if __name__ == '__main__':
     dataset = getGroupedDatasets()[4]
     print(getGroupedDatasets())
-    tracker = getTrackers()[0]
+    tracker = getTrackers()[1]  # 0 slow good, 1 fast bad
 
     evalMultiTracker(dataset, tracker)
