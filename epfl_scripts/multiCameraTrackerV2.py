@@ -120,6 +120,24 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
                 print "Overrided previous data"
             predictions[dataset][closestid] = [None, (True, bbox), 0]
 
+    # calculate dispersion of each id
+    for id in ids:
+        maxdist = 0
+        points = 0
+        for i, dataset in enumerate(groupDataset):
+            if predictions[dataset][id][0] is None: continue
+            points += 1
+            for dataset2 in groupDataset[0:i]:
+                if dataset == dataset2: continue
+                if predictions[dataset2][id][0] is None: continue
+
+                dist = f_euclidian(to3dWorld(dataset, predictions[dataset][id][1][1]), to3dWorld(dataset2, predictions[dataset2][id][1][1]))
+                if dist > maxdist:
+                    maxdist = dist
+
+        if points > 1:
+            print "id=", id, " maxdist=", maxdist, " points=", points
+
     return predictions, ids
 
 
