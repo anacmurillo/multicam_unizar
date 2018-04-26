@@ -70,14 +70,14 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
 
     # update ids
     for dataset in groupDataset:
-        for id in ids:
+        for i, id in enumerate(ids):
             tracker, bbox, framesLost = predictions[dataset][id]
             if bbox is None: continue
 
             # find closest other id
             bestId = None
             bestDist = 10
-            for id2 in ids:
+            for id2 in ids[0:i]:
                 if predictions[dataset][id2][1] is not None: continue
                 for dataset2 in groupDataset:
                     if id == id2 and dataset == dataset2: continue
