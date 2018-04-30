@@ -1,4 +1,3 @@
-import math
 import numpy as np
 import sys
 
@@ -6,31 +5,21 @@ import sys
 import epfl_scripts.Utilities.cv2Visor as cv2
 from epfl_scripts.Utilities.colorUtility import getColors
 from epfl_scripts.Utilities.cv2Trackers import getTracker, getTrackers
+from epfl_scripts.Utilities.geometry_utils import f_iou, f_euclidian, homogeneous
 from epfl_scripts.Utilities.groundTruthParser import getVideo, getGroupedDatasets, getSuperDetector, getCalibrationMatrix
 
 WIN_NAME = "Tracking"
 
+cv2.configure(100)
 
-def f_iou(boxA, boxB):
-    """
-    IOU (Intersection over Union) of both boxes.
-    :return: value in range [0,1]. 0 if disjointed bboxes, 1 if equal bboxes
-    """
+DETECTOR_FIRED = 5  # after this number of frames the detector is evaluated
 
-    boxA = [boxA[0], boxA[1], boxA[0] + boxA[2], boxA[1] + boxA[3]]
-    boxB = [boxB[0], boxB[1], boxB[0] + boxB[2], boxB[1] + boxB[3]]
+IOU_THRESHOLD = 0.5  # minimum iou to assign a detection to a prediction
+FRAMES_LOST = 10  # maximum number of frames until the detection is removed
 
-    intersection = f_area([max(boxA[0], boxB[0]), max(boxA[1], boxB[1]), min(boxA[2], boxB[2]), min(boxA[3], boxB[3])])
-
-    union = f_area(boxA) + f_area(boxB) - intersection
-    return intersection / union
-
-
-def f_area(bbox):
-    """
-    return area of bbox
-    """
-    return (bbox[2] - bbox[0]) * 1. * (bbox[3] - bbox[1]) if bbox[2] > bbox[0] and bbox[3] > bbox[1] else 0.
+CLOSEST_DIST = 10  # if an existing point is closer than this to a different point id, it is assigned that same id
+FARTHEST_DIST = 50  # if an existing point is farther than the rest of the group, it is removed
+DETECTION_DIST = 50  # if a new point is closer than this to an existing point, it is assigned the same id
 
 
 def findfree(group):
@@ -56,20 +45,21 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
 
             # find closest detector to tracker
             bestBbox = bbox
-            bestIoU = 0.5
-            for detBbox in detector[dataset]:
+            bestIoU = IOU_THRESHOLD
+            for detBbox in detector[dataset] if detector is not None else []:
                 iou = f_iou(bbox, detBbox)
                 if iou > bestIoU:
                     bestIoU = iou
                     bestBbox = detBbox
 
-            framesLost += 1
-            if bestIoU > 0.5:
+            if bestIoU > IOU_THRESHOLD:
                 detector[dataset].remove(bestBbox)
-                framesLost = 0
+                framesLost = min(0, framesLost - 1)
+            else:
+                framesLost = max(0, framesLost + (1 if detector is not None else 0))
 
             # update frame
-            if framesLost < 10:
+            if framesLost < FRAMES_LOST:
                 predictions[dataset][id] = [tracker, bestBbox, framesLost]
                 pos3d.append((to3dWorld(dataset, bestBbox), id))
             else:
@@ -83,7 +73,7 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
 
             # find closest other id
             bestId = None
-            bestDist = 10
+            bestDist = CLOSEST_DIST
             for id2 in ids[0:i]:
                 if predictions[dataset][id2][1] is not None: continue
                 for dataset2 in groupDataset:
@@ -99,7 +89,7 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
                 predictions[dataset][id] = [None, None, 0]
 
             # find closest id in group
-            bestDist = 50
+            bestDist = FARTHEST_DIST
             found = False
             points = 1
             for dataset2 in groupDataset:
@@ -119,11 +109,11 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
 
     # assign detections
     for dataset in groupDataset:
-        for bbox in detector[dataset]:
+        for bbox in detector[dataset] if detector is not None else []:
 
             # find best id
             closestid = -1
-            closestDist = 50
+            closestDist = DETECTION_DIST
             assign = False
 
             for point, id in pos3d:
@@ -176,25 +166,6 @@ def to3dWorld(dataset, bbox):
     return homogeneous(np.dot(calib, [bbox[0] + bbox[2] / 2., bbox[1] + bbox[3], 1.]))
 
 
-def f_subtract(pointA, pointB):
-    return pointA[0] - pointB[0], pointA[1] - pointB[1], 1
-
-
-def f_center(bbox):
-    return bbox[0] + bbox[2] / 2., bbox[1] + bbox[3] / 2.
-
-
-def f_euclidian(a, b):
-    """
-    returns the euclidian distance between the two points
-    """
-    return math.sqrt((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2)
-
-
-def homogeneous(p):
-    return np.true_divide(p[0:2], p[2])
-
-
 def fixbbox(frame, bbox):
     if bbox is None: return None
 
@@ -224,7 +195,6 @@ def fixbbox(frame, bbox):
 
 def evalMultiTracker(groupDataset, tracker_type, display=True):
     detector = {}  # detector[dataset][frame][index]
-    emptydetector = {}
 
     # colors
     colors = getColors(12)
@@ -232,7 +202,6 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
     # parse detector
     for dataset in groupDataset:
         _data = getSuperDetector(dataset)
-        emptydetector[dataset] = []
 
         for iter_frames in _data.iterkeys():
             detector.setdefault(iter_frames, {})[dataset] = []
@@ -283,8 +252,11 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                     ok, bbox = tracker.update(frames[dataset])
                     predictions[dataset][id][1] = bbox if ok else None
 
+        # detector needed
+        detector_needed = frame_index % DETECTOR_FIRED == 0
+
         # merge all predictions
-        predictions, ids = mergeAllPredictions(predictions, ids, detector[frame_index] if frame_index % 10 == 0 else emptydetector, groupDataset)
+        predictions, ids = mergeAllPredictions(predictions, ids, detector[frame_index] if detector_needed else None, groupDataset)
 
         # initialize new trackers
         for dataset in groupDataset:
@@ -316,7 +288,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                 p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
                 data_detected[dataset][frame_index][id] = [p1[0], p1[1], p2[0], p2[1]]  # xmin, ymin, xmax, ymax
                 if display:
-                    color = colors[id % 12]
+                    color = colors[id % len(colors)]
                     cv2.rectangle(frames[dataset], p1, p2, color, 2, 1)
                     cv2.putText(frames[dataset], str(id), p1, cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
@@ -338,8 +310,9 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                     if bbox is None: continue
 
                     point = to3dWorld(dataset, bbox)
-                    cv2.circle(frame, (int(point[0]), int(point[1])), 1, colors[id % 12])
-            cv2.imshow(WIN_NAME + "overview", frame)
+                    cv2.circle(frame, (int(point[0]), int(point[1])), 1, colors[id % len(colors)])
+            cv2.imshow(WIN_NAME + "_overview", frame)
+            # /end display overview
 
             if cv2.waitKey(1) & 0xff == 27:
                 break
