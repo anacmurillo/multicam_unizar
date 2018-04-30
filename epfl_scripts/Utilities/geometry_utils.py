@@ -1,5 +1,4 @@
 import math
-import numpy as np
 
 
 class Bbox:
@@ -26,6 +25,41 @@ class Bbox:
     def getAsXmYmWH(self):
         return self.xmin, self.ymin, self.width, self.height
 
+    def isValid(self):
+        return self.width >= 0 \
+               and self.width == self.xmax - self.xmin \
+               and self.height >= 0 \
+               and self.height == self.ymax - self.ymin
+
+    def changeXmin(self, xmin):
+        self.xmin = xmin
+        self.width = self.xmax - self.xmin
+
+    def changeYmin(self, ymin):
+        self.ymin = ymin
+        self.height = self.ymax - self.ymin
+
+    def changeXmax(self, xmax):
+        self.xmax = xmax
+        self.width = self.xmax - self.xmin
+
+    def changeYmax(self, ymax):
+        self.ymax = ymax
+        self.height = self.ymax - self.ymin
+
+
+class Point2D:
+    def __init__(self, x, y, s=1):
+        self.x = x
+        self.y = y
+        self.s = s
+
+    def getAsXY(self):
+        return float(self.x) / self.s, float(self.y) / self.s
+
+    def getAsXYS(self):
+        return self.x, self.y, self.s
+
 
 def f_iou(boxA, boxB):
     """
@@ -33,42 +67,45 @@ def f_iou(boxA, boxB):
     :return: value in range [0,1]. 0 if disjointed bboxes, 1 if equal bboxes
     """
 
-    boxA = [boxA[0], boxA[1], boxA[0] + boxA[2], boxA[1] + boxA[3]]
-    boxB = [boxB[0], boxB[1], boxB[0] + boxB[2], boxB[1] + boxB[3]]
-
-    intersection = f_area([max(boxA[0], boxB[0]), max(boxA[1], boxB[1]), min(boxA[2], boxB[2]), min(boxA[3], boxB[3])])
+    intersection = f_area(Bbox.XmYmXMYM(max(boxA.xmin, boxB.xmin), max(boxA.ymin, boxB.ymin), min(boxA.xmax, boxB.xmax), min(boxA.ymax, boxB.ymax)))
 
     union = f_area(boxA) + f_area(boxB) - intersection
-    return intersection / union
+    return float(intersection) / union
 
 
 def f_area(bbox):
     """
     return area of bbox
     """
-    return (bbox[2] - bbox[0]) * 1. * (bbox[3] - bbox[1]) if bbox[2] > bbox[0] and bbox[3] > bbox[1] else 0.
+    return bbox.width * 1. * bbox.height if bbox.isValid() else 0.
 
 
-def f_subtract(pointA, pointB):
+def f_subtract(a, b):
     """
-    return difference of points
-    :param pointA:
-    :param pointB:
+    return difference of points a-b
+    :param a:
+    :param b:
     :return:
     """
-    return pointA[0] - pointB[0], pointA[1] - pointB[1], 1
+    return Point2D(b.s * a.x - a.s * b.x, b.s * a.y - a.s * b.y, a.s * b.s)
 
 
 def f_center(bbox):
-    return bbox[0] + bbox[2] / 2., bbox[1] + bbox[3] / 2.
+    return Point2D(bbox.xmin + bbox.width / 2., bbox.ymin + bbox.height / 2.)
 
 
 def f_euclidian(a, b):
     """
     returns the euclidian distance between the two points
     """
-    return math.sqrt((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2)
+    ax, ay = a.getAsXY()
+    bx, by = b.getAsXY()
+    return math.sqrt((bx - ax) ** 2 + (by - ay) ** 2)
 
 
-def homogeneous(p):
-    return np.true_divide(p[0:2], p[2])
+def f_multiply(matrix, p):
+    rows = [0, 0, 0]
+    for i in range(3):
+        for j in range(3):
+            rows[i] += matrix[i][j] * p.getAsXYS()[j]
+    return Point2D(rows[0], rows[1], rows[2])
