@@ -7,8 +7,9 @@ import matplotlib.patches as pltpatches
 import matplotlib.pyplot as plt
 import matplotlib.ticker as pltticker
 
-from epfl_scripts.Utilities.cv2Trackers import evaluateTracker
-from epfl_scripts.Utilities.groundTruthParser import getGroundTruth
+from epfl_scripts.Utilities.cv2Trackers import evaluateTracker, getTrackers
+from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getGroupedDatasets
+from epfl_scripts.multiCameraTrackerV2 import evalMultiTracker
 
 threshold_range = 100
 
@@ -20,9 +21,18 @@ def evaluateMetrics(dataset, tracker):
     :param tracker: the tracker to evaluate
     """
     track_ids, data_groundTruth = getGroundTruth(dataset)
-
     n_frames, data_tracker = evaluateTracker(dataset, tracker)
+    evaluateData(track_ids, data_groundTruth, n_frames, data_tracker, 'Detection - ' + dataset + ' - ' + tracker)
 
+
+def evaluateMetricsGroup(groupDataset, tracker):
+    n_frames, data = evalMultiTracker(groupDataset, tracker, False)
+    for dataset in groupDataset:
+        track_ids, data_groundTruth = getGroundTruth(dataset)
+        evaluateData(track_ids, data_groundTruth, n_frames, data[dataset], 'Detection - ' + dataset + ' - ' + tracker)
+
+
+def evaluateData(track_ids, data_groundTruth, n_frames, data_tracker, label):
     # MOTP
     print "MOTP:"
     motp_ids = motp(track_ids, n_frames, data_groundTruth, data_tracker)
@@ -61,7 +71,7 @@ def evaluateMetrics(dataset, tracker):
     plt.legend(legend, labels, bbox_to_anchor=(0.5, 1), loc='upper center', ncol=3, fontsize=10)
     plt.xlim([0, n_frames])
     plt.ylim([-0.5, len(track_ids) + 0.5])
-    plt.title('Detection - ' + dataset + ' - ' + tracker)
+    plt.title(label)
     plt.xlabel('frames')
     plt.ylabel('persons')
     plt.yticks(*zip(*list(enumerate(track_ids))))
@@ -258,10 +268,14 @@ def f_euclidian(a, b):
 
 
 if __name__ == '__main__':
-    evaluateMetrics("Laboratory/6p-c0", 'MEANSHIFT')
-    evaluateMetrics("Laboratory/6p-c0", 'CAMSHIFT')
+    # evaluateMetrics("Laboratory/6p-c0", 'MEANSHIFT')
+    # evaluateMetrics("Laboratory/6p-c0", 'CAMSHIFT')
     # evaluateMetrics("Basketball/match5-c2")
 
     # for dataset in getDatasets():
     #    print dataset
     #    evaluateMetrics(dataset)
+
+    # V2
+
+    evaluateMetricsGroup(getGroupedDatasets()[4], getTrackers()[1])
