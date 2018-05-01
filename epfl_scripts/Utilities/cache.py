@@ -8,26 +8,44 @@ def foo(bar):
     #something
 
 """
+import inspect
 import os
 import pickle
+from functools import wraps
 
 savedFolder = "_cache_/"
 
 
-def cache_function(name, forceLoad=False):
+def cache_function(name, forceLoad=lambda *args, **kwargs: False):
     """
     Decorator to mark functions as cached under a name. (Memoization)
     The name is formatted {.format()} with the function parameters, to allow parameters-dependent caches
+    The forceload is a function which is passed the function parameters, to allow forceLoad under some conditions
     If the name is already cached, the value is returned without evaluating the function.
-    If the name is not cached OR forceload=True, the function is evaluated, saved and returned
+    If the name is not cached OR forceLoad returns true, the function is evaluated, saved and returned
 
-    Examples:   cache_function("mycache") will store the cache under 'mycache'
-                cache_function("{0}_cache") will store foo(1) under '1_cache', foo('s') under 's_cache', and so on.
+    Examples:   @cache_function("mycache") will store the cache under 'mycache'
+                @cache_function("{0}_cache") will store foo(1) under '1_cache', foo('s') under 's_cache', and so on.
+                @cache_function("mycache", lambda x: x<0) will always execute the function if the first parameter of the function is negative
     """
 
     def func_decorator(func):
+        argspec = inspect.getargspec(func)
+        positional_count = len(argspec.args) - len(argspec.defaults)
+        defaults = dict(zip(argspec.args[positional_count:], argspec.defaults))
+
+        @wraps(func)
         def func_wrapper(*args, **kwargs):
-            return cachedObject(name.format(*args, **kwargs), lambda: func(*args, **kwargs), forceLoad)
+
+            newargs = args[:positional_count]
+            newkwargs = defaults.copy()
+            newkwargs.update({k: v for k, v in zip(argspec.args[positional_count:], args[positional_count:])})
+            newkwargs.update(kwargs)
+
+            args = newargs
+            kwargs = newkwargs
+
+            return cachedObject(name.format(*args, **kwargs), lambda: func(*args, **kwargs), forceLoad(*args, **kwargs))
 
         return func_wrapper
 
@@ -161,7 +179,7 @@ if __name__ == '__main__':
     deleteObject("_test_")
 
 
-    @cache_function("_test_")
+    @cache_function("_test_", lambda a, b: a == 3)
     def awesomeFunction(a, b):
         print "awesome function evaluated"
         return a * b
