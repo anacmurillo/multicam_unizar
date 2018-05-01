@@ -3,6 +3,7 @@ import sys
 
 # import cv2
 import epfl_scripts.Utilities.cv2Visor as cv2
+from epfl_scripts.Utilities.cache import cache_function
 from epfl_scripts.Utilities.colorUtility import getColors
 from epfl_scripts.Utilities.cv2Trackers import getTracker, getTrackers
 from epfl_scripts.Utilities.geometry_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox
@@ -17,15 +18,17 @@ DETECTOR_FIRED = 5  # after this number of frames the detector is evaluated
 IOU_THRESHOLD = 0.5  # minimum iou to assign a detection to a prediction
 FRAMES_LOST = 5  # maximum number of frames until the detection is removed
 
-CLOSEST_DIST = 10  # if an existing point is closer than this to a different point id, it is assigned that same id
+FRAMES_PERSON = 10  # after this number of frames with at least one camera tracking a target (id<0), it is assigned as person (id>=0)
+
+CLOSEST_DIST = 20  # if an existing point is closer than this to a different point id, it is assigned that same id
 FARTHEST_DIST = 50  # if an existing point is farther than the rest of the group, it is removed
 DETECTION_DIST = 50  # if a new point is closer than this to an existing point, it is assigned the same id
 
 
-def findfree(group):
-    free = -1
+def findfree(group, person):
+    free = 0 if person else -1
     while free in group:
-        free -= 1
+        free += 1 if person else -1
     return free
 
 
@@ -54,12 +57,14 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
                     bestBbox = detBbox
 
             if bestIoU > IOU_THRESHOLD:
+                # prediction found, remove from detections but keep for others
                 if bestBbox in detector[dataset]:
                     detector[dataset].remove(bestBbox)
                     detectorUsed.append(bestBbox)
                 framesLost = min(0, framesLost - 1)
-            else:
-                framesLost = max(0, framesLost + (1 if detector is not None else 0))
+            elif detector is not None:
+                # not found, lost if detector was active
+                framesLost = max(0, framesLost + 1)
 
             # update frame
             if framesLost < FRAMES_LOST:
@@ -68,7 +73,7 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
             else:
                 predictions[dataset][id] = [tracker, None, 0]
 
-    # update ids
+    # update ids individually
     for i, id in enumerate(ids[:]):
         for dataset in groupDataset:
             tracker, bbox, framesLost = predictions[dataset][id]
@@ -90,6 +95,7 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
             if bestId is not None:
                 predictions[dataset][bestId] = predictions[dataset][id]
                 predictions[dataset][id] = [None, None, 0]
+                id = bestId
 
             # find closest id in group
             bestDist = FARTHEST_DIST
@@ -104,13 +110,30 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
                     bestDist = dist
                     found = True
             if not found and points > 1:
-                newid = findfree(ids)
+                newid = findfree(ids, False)
                 predictions[dataset][newid] = predictions[dataset][id]
                 predictions[dataset][id] = [None, None, 0]
                 for dataset2 in groupDataset:
                     if dataset == dataset2: continue
                     predictions[dataset2][newid] = [None, None, 0]
                 ids.append(newid)
+                id = newid
+
+    # set target as person if tracked continuously
+    for id in ids:
+        if id >= 0: continue
+        person = False
+        for dataset in groupDataset:
+            if predictions[dataset][id][2] < -FRAMES_PERSON:
+                person = True
+                break
+        if person:
+            newid = findfree(ids, True)
+            for dataset in groupDataset:
+                predictions[dataset][newid] = predictions[dataset][id]
+                predictions[dataset][id] = [None, None, 0]
+            ids.remove(id)
+            ids.append(newid)
 
     # assign detections
     if detector is not None:
@@ -129,7 +152,7 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
 
                 # assign new prediction
                 if closestid is None:
-                    closestid = findfree(ids)
+                    closestid = findfree(ids, False)
                     for dataset2 in groupDataset:
                         if dataset == dataset2: continue
                         predictions[dataset2][closestid] = [None, None, 0]
@@ -154,7 +177,7 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
                 if dist > maxdist:
                     maxdist = dist
 
-        #if points > 1:
+        # if points > 1:
         #    print "id=", id, " maxdist=", maxdist, " points=", points
 
         if points > 0:
@@ -197,6 +220,7 @@ def fixbbox(frame, bbox):
     return bbox
 
 
+@cache_function("evalMultiTracker_{0}_{1}", lambda _gd, _tt, display: display)
 def evalMultiTracker(groupDataset, tracker_type, display=True):
     detector = {}  # detector[dataset][frame][index]
 
@@ -287,14 +311,16 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                 bbox = predictions[dataset][id][1]
                 if bbox is None: continue
 
-                data_detected[dataset][frame_index][id] = bbox  # xmin, ymin, xmax, ymax
+                if id >= 0:
+                    data_detected[dataset][frame_index][id] = bbox.getAsXmYmXMYM()  # xmin, ymin, xmax, ymax
+
                 # show bbox
                 if display:
                     p1 = (int(bbox.xmin), int(bbox.ymin))
                     p2 = (int(bbox.xmax), int(bbox.ymax))
                     color = colors[id % len(colors)]
-                    cv2.rectangle(frames[dataset], p1, p2, color, 2, 1)
-                    cv2.putText(frames[dataset], str(id), p1, cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+                    cv2.rectangle(frames[dataset], p1, p2, color, 2 if id >= 0 else 1, 1)
+                    cv2.putText(frames[dataset], str(id), p1, cv2.FONT_HERSHEY_SIMPLEX, 0.4 if id >= 0 else 0.2, color, 1)
 
         if display:
             # Display result
