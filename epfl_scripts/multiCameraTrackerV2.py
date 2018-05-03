@@ -68,10 +68,10 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
 
             # update frame
             if framesLost < FRAMES_LOST:
-                predictions[dataset][id] = [tracker, bestBbox, framesLost]
+                predictions[dataset][id] = [tracker if bestBbox == bbox else None, bestBbox, framesLost]
                 pos3d.append((to3dWorld(dataset, bestBbox), id))
             else:
-                predictions[dataset][id] = [tracker, None, 0]
+                predictions[dataset][id] = [None, None, 0]
 
     # update ids individually
     for i, id in enumerate(ids[:]):
@@ -154,11 +154,10 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
                 if closestid is None:
                     closestid = findfree(ids, False)
                     for dataset2 in groupDataset:
-                        if dataset == dataset2: continue
                         predictions[dataset2][closestid] = [None, None, 0]
                     ids.append(closestid)
-                if closestid in predictions[dataset] and predictions[dataset][closestid][1] is not None:
-                    print "Overrided previous data"
+                # if closestid in predictions[dataset] and predictions[dataset][closestid][1] is not None:
+                #    print "Overrided previous data"
                 predictions[dataset][closestid] = [None, bbox, 0]
 
     # calculate dispersion of each id and remove empty ones
@@ -200,11 +199,7 @@ def fixbbox(frame, bbox):
 
     # (0 <= roi.x && 0 <= roi.width && roi.x + roi.width <= m.cols && 0 <= roi.y && 0 <= roi.height && roi.y + roi.height <= m.rows)
     if bbox.width <= 0 \
-            or bbox.height <= 0 \
-            or bbox.xmin < 0 \
-            or bbox.ymin < 0 \
-            or bbox.xmax > width \
-            or bbox.ymax > height:  # TODO: remove this to change bboxes
+            or bbox.height <= 0:
         # bad bbox
         return None
 
@@ -217,7 +212,7 @@ def fixbbox(frame, bbox):
     if bbox.ymax > height:
         bbox.setYmax(height)
 
-    return bbox
+    return bbox if bbox.isValid() else None
 
 
 @cache_function("evalMultiTracker_{0}_{1}", lambda _gd, _tt, display: display)
@@ -289,6 +284,9 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
         # initialize new trackers
         for dataset in groupDataset:
             for id in ids:
+                tracker = predictions[dataset][id][0]
+                if tracker is not None: continue
+
                 bbox = fixbbox(frames[dataset], predictions[dataset][id][1])
                 predictions[dataset][id][1] = bbox
 
@@ -340,7 +338,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                     if bbox is None: continue
 
                     px, py = to3dWorld(dataset, bbox).getAsXY()
-                    cv2.circle(frame, (int(px), int(py)), 1, colors[id % len(colors)])
+                    cv2.circle(frame, (int(px), int(py)), 1, colors[id % len(colors)], 2)
             cv2.imshow(WIN_NAME + "_overview", frame)
             # /end display overview
 

@@ -29,10 +29,15 @@ def evaluateMetricsGroup(groupDataset, tracker):
     n_frames, data = evalMultiTracker(groupDataset, tracker, False)
     for dataset in groupDataset:
         track_ids, data_groundTruth = getGroundTruth(dataset)
-        evaluateData(track_ids, data_groundTruth, n_frames, data[dataset], 'Detection - ' + dataset + ' - ' + tracker)
+        evaluateData(track_ids, data_groundTruth, n_frames, data[dataset], 'Detection - ' + dataset + ' - ' + tracker, False)
+    plt.show()
 
 
-def evaluateData(track_ids, data_groundTruth, n_frames, data_tracker, label):
+def evaluateData(track_ids, data_groundTruth, n_frames, data_tracker, label, block=True):
+    plt.figure(label)
+    print
+    print "Metrics of:", label
+
     # MOTP
     print "MOTP:"
     motp_ids = motp(track_ids, n_frames, data_groundTruth, data_tracker)
@@ -78,7 +83,8 @@ def evaluateData(track_ids, data_groundTruth, n_frames, data_tracker, label):
     plt.gca().yaxis.set_minor_locator(pltticker.FixedLocator(minorTicks))
     plt.grid(True, which='major', axis='y', linestyle=':')
     plt.grid(True, which='minor', axis='y', linestyle='-')
-    plt.show()
+    if block:
+        plt.show()
 
     # for id in track_ids:
     #     x = []
