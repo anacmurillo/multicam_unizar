@@ -22,71 +22,50 @@ def evaluateMetrics(dataset, tracker):
     """
     track_ids, data_groundTruth = getGroundTruth(dataset)
     n_frames, data_tracker = evaluateTracker(dataset, tracker)
-    evaluateData(track_ids, data_groundTruth, n_frames, data_tracker, 'Detection - ' + dataset + ' - ' + tracker)
+    evaluateData(track_ids, data_groundTruth, n_frames, track_ids, data_tracker, 'Detection - ' + dataset + ' - ' + tracker)
 
 
 def evaluateMetricsGroup(groupDataset, tracker):
-    n_frames, data = evalMultiTracker(groupDataset, tracker, False)
+    n_frames, n_ids, data = evalMultiTracker(groupDataset, tracker, False)
     for dataset in groupDataset:
-        track_ids, data_groundTruth = getGroundTruth(dataset)
-        evaluateData(track_ids, data_groundTruth, n_frames, data[dataset], 'Detection - ' + dataset + ' - ' + tracker, False)
+        gt_ids, data_groundTruth = getGroundTruth(dataset)
+        evaluateData(gt_ids, data_groundTruth, n_frames, n_ids, data[dataset], 'Detection - ' + dataset + ' - ' + tracker, False)
     plt.show()
 
 
-def evaluateData(track_ids, data_groundTruth, n_frames, data_tracker, label, block=True):
-    plt.figure(label)
+def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label, block=True):
     print
     print "Metrics of:", label
+    if len(tr_ids) != len(gt_ids):
+        print "[WARNING] There are", len(gt_ids), "ids on dataset, but", len(tr_ids), "returned by tracker"
 
     # MOTP
     print "MOTP:"
-    motp_ids = motp(track_ids, n_frames, data_groundTruth, data_tracker)
-    motp_average = 0
-    for id in track_ids:
+    motp_ids = motp(gt_ids, n_frames, data_groundTruth, data_tracker)
+    motp_average = 0.
+    for id in gt_ids:
         print "    ", id, "=", motp_ids[id]
-    print "average =", motp_average / len(track_ids)
+        motp_average += motp_ids[id]
+    print "average =", motp_average / len(gt_ids)
 
     # MOTA
     print "MOTA"
-    mota_ids = mota(track_ids, n_frames, data_groundTruth, data_tracker)
+    mota_ids = mota(gt_ids, n_frames, data_groundTruth, data_tracker)
     mota_average = 0
-    for id in track_ids:
+    for id in gt_ids:
         mota_average += mota_ids[id]
         print "    ", id, "=", mota_ids[id]
-    print "average =", mota_average / len(track_ids)
+    print "average =", mota_average / len(gt_ids)
 
     # frame legend
-    colors = ['black', 'purple', 'blue', 'red', 'green']
-    labels = ['Not present', 'Tracker found ghost', 'Tracker didn\'t found', 'Totally Missed (IOU=0)', 'Perfect Found (IUO=1)']
-    colormap = pltcolors.LinearSegmentedColormap.from_list('name', colors)
-    binaries = getTrackType(track_ids, n_frames, data_groundTruth, data_tracker)
-    minorTicks = []
-    for index, id in enumerate(track_ids):
-        x = range(len(binaries[id]))
-        y = []
-        for y_index in x:
-            val = binaries[id][y_index]
-            val = val if val >= 0 else 1 if val == -3 else 0
-            y.append(index - 0.3 + val * 0.6)
-        minorTicks.extend([index - 0.3, index + 0.3])
-        plt.scatter(x, y, s=25, c=binaries[id], marker='|', edgecolors='none', cmap=colormap)
-    legend = []
-    for i in range(len(labels)):
-        legend.append(pltpatches.Rectangle((0, 0), 1, 2, fc=colors[i]))
-    plt.legend(legend, labels, bbox_to_anchor=(0.5, 1), loc='upper center', ncol=3, fontsize=10)
-    plt.xlim([0, n_frames])
-    plt.ylim([-0.5, len(track_ids) + 0.5])
-    plt.title(label)
-    plt.xlabel('frames')
-    plt.ylabel('persons')
-    plt.yticks(*zip(*list(enumerate(track_ids))))
-    plt.gca().yaxis.set_minor_locator(pltticker.FixedLocator(minorTicks))
-    plt.grid(True, which='major', axis='y', linestyle=':')
-    plt.grid(True, which='minor', axis='y', linestyle='-')
+    iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker, label)
+
+    id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label)
+
     if block:
         plt.show()
 
-    # for id in track_ids:
+    # for id in gt_ids:
     #     x = []
     #     y = []
     #     c = []
@@ -104,6 +83,51 @@ def evaluateData(track_ids, data_groundTruth, n_frames, data_tracker, label, blo
     # plt.ylim([0, 1])
     # plt.title('precision-recall - ' + dataset + ' - ' + tracker)
     # plt.show()
+
+
+def iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker, label):
+    plt.figure("iou_graph_"+label)
+
+    colors = ['black', 'purple', 'blue', 'red', 'green']
+    labels = ['Not present', 'Tracker found ghost', 'Tracker didn\'t found', 'Totally Missed (IOU=0)', 'Perfect Found (IUO=1)']
+    colormap = pltcolors.LinearSegmentedColormap.from_list('name', colors)
+    normalization = pltcolors.Normalize(vmin=-3, vmax=1)
+    binaries = getTrackType(gt_ids, n_frames, data_groundTruth, data_tracker)
+    minorTicks = []
+    for index, id in enumerate(gt_ids):
+        x = range(len(binaries[id]))
+        y = []
+        for y_index in x:
+            val = binaries[id][y_index]
+            val = val if val >= 0 else 1 if val == -3 else 0
+            y.append(index - 0.3 + val * 0.6)
+        minorTicks.extend([index - 0.3, index + 0.3])
+        plt.scatter(x, y, s=25, c=binaries[id], marker='|', edgecolors='none', cmap=colormap, norm=normalization)
+    legend = []
+    for i in range(len(labels)):
+        legend.append(pltpatches.Rectangle((0, 0), 1, 2, fc=colors[i]))
+    plt.legend(legend, labels, bbox_to_anchor=(0.5, 1), loc='upper center', ncol=3, fontsize=10)
+    plt.xlim([0, n_frames])
+    plt.ylim([-0.5, len(gt_ids) + 0.5])
+    plt.title(label)
+    plt.xlabel('frames')
+    plt.ylabel('persons')
+    plt.yticks(*zip(*list(enumerate(gt_ids))))
+    plt.gca().yaxis.set_minor_locator(pltticker.FixedLocator(minorTicks))
+    plt.grid(True, which='major', axis='y', linestyle=':')
+    plt.grid(True, which='minor', axis='y', linestyle='-')
+
+
+def id_graph(gt_ids, data_groundTruth, n_frames, n_ids, data_tracker, label):
+    return
+    #plt.figure("id_graph_" + label)
+    #
+    #colors = getColors(n_ids)
+#
+    #for gt_index, gt_id in enumerate(gt_ids):
+    #    for
+    #    for
+    #    plt.scatter(x, y, s=25, c=binaries[id], marker='|', edgecolors='none', cmap=colormap)
 
 
 def precision_recall(id, frames, groundtruth, tracker, threshold):
@@ -191,7 +215,7 @@ def motp(ids, frames, groundtruth, tracker):
             if bbox_gt is not None and bbox_tr is not None:
                 distance += f_distance(bbox_gt, bbox_tr)  # f_iou(bbox_gt, bbox_tr)
                 matches += 1
-        persons[id] = distance / matches
+        persons[id] = distance / matches if matches > 0 else 0.
 
     return persons
 

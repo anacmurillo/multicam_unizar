@@ -26,32 +26,35 @@ DETECTION_DIST = 50  # if a new point is closer than this to an existing point, 
 
 
 def findfree(group, person):
-    free = 0 if person else -1
-    while free in group:
-        free += 1 if person else -1
-    return free
+    if person:
+        return max(group+[-1]) + 1
+    else:
+        free = -1
+        while free in group:
+            free -= 1
+        return free
 
 
-def estimateFromPredictions(predictions, ids, detector, groupDataset):
-    # predictions[dataset][id] = [ tracker, bbox, framesLost, {add as necessary} ]
+def estimateFromPredictions(predictions, ids, detector, cameras):
+    # predictions[camera][id] = [ tracker, bbox, framesLost, {add as necessary} ]
     # for id in ids: etc
-    # detector[dataset] = [ (bbox), ... ]
-    # for dataset in groupDataset: etc
+    # detector[camera] = [ (bbox), ... ]
+    # for camera in cameras: etc
 
     pos3d = []
 
     if detector is not None:
         # assign detector instances to predictions
-        for dataset in groupDataset:
+        for camera in cameras:
             detectorUsed = []
             for id in ids:
-                tracker, bbox, framesLost = predictions[dataset][id]
+                tracker, bbox, framesLost = predictions[camera][id]
                 if bbox is None: continue
 
                 # find closest detector to tracker
                 bestBbox = bbox
                 bestIoU = IOU_THRESHOLD
-                for detBbox in detector[dataset] + detectorUsed if detector is not None else []:
+                for detBbox in detector[camera] + detectorUsed if detector is not None else []:
                     iou = f_iou(bbox, detBbox)
                     if iou > bestIoU:
                         bestIoU = iou
@@ -59,8 +62,8 @@ def estimateFromPredictions(predictions, ids, detector, groupDataset):
 
                 if bestIoU > IOU_THRESHOLD:
                     # prediction found, remove from detections but keep for others
-                    if bestBbox in detector[dataset]:
-                        detector[dataset].remove(bestBbox)
+                    if bestBbox in detector[camera]:
+                        detector[camera].remove(bestBbox)
                         detectorUsed.append(bestBbox)
                     framesLost = min(0, framesLost - 1)
                 elif detector is not None:
@@ -69,59 +72,59 @@ def estimateFromPredictions(predictions, ids, detector, groupDataset):
 
                 # update bbox with best bbox (original or new)
                 if framesLost < FRAMES_LOST:
-                    predictions[dataset][id] = [tracker if bestBbox == bbox else None, bestBbox, framesLost]
-                    pos3d.append((to3dWorld(dataset, bestBbox), id))
+                    predictions[camera][id] = [tracker if bestBbox == bbox else None, bestBbox, framesLost]
+                    pos3d.append((to3dWorld(camera, bestBbox), id))
                 else:
-                    predictions[dataset][id] = [None, None, 0]
+                    predictions[camera][id] = [None, None, 0]
     else:
         # populate 3d info only
-        for dataset in groupDataset:
+        for camera in cameras:
             for id in ids:
-                bbox = predictions[dataset][id][1]
+                bbox = predictions[camera][id][1]
                 if bbox is not None:
-                    pos3d.append((to3dWorld(dataset, bbox), id))
+                    pos3d.append((to3dWorld(camera, bbox), id))
     # update ids individually
     for i, id in enumerate(ids[:]):
-        for dataset in groupDataset:
-            tracker, bbox, framesLost = predictions[dataset][id]
+        for camera in cameras:
+            tracker, bbox, framesLost = predictions[camera][id]
             if bbox is None: continue
 
             # find closest other id
             bestId = None
             bestDist = CLOSEST_DIST
             for id2 in ids[0:i]:
-                if predictions[dataset][id2][1] is not None: continue
-                for dataset2 in groupDataset:
-                    if id == id2 and dataset == dataset2: continue
+                if predictions[camera][id2][1] is not None: continue
+                for dataset2 in cameras:
+                    if id == id2 and camera == dataset2: continue
                     if predictions[dataset2][id2][1] is None: continue
 
-                    dist = f_euclidian(to3dWorld(dataset2, predictions[dataset2][id2][1]), to3dWorld(dataset, bbox))
+                    dist = f_euclidian(to3dWorld(dataset2, predictions[dataset2][id2][1]), to3dWorld(camera, bbox))
                     if dist < bestDist:
                         bestId = id2
                         bestDist = dist
             if bestId is not None:
-                predictions[dataset][bestId] = predictions[dataset][id]
-                predictions[dataset][id] = [None, None, 0]
+                predictions[camera][bestId] = predictions[camera][id]
+                predictions[camera][id] = [None, None, 0]
                 id = bestId
 
             # find closest id in group
             bestDist = FARTHEST_DIST
             found = False
             points = 1
-            for dataset2 in groupDataset:
-                if dataset2 == dataset: continue
+            for dataset2 in cameras:
+                if dataset2 == camera: continue
                 if predictions[dataset2][id][1] is None: continue
                 points += 1
-                dist = f_euclidian(to3dWorld(dataset2, predictions[dataset2][id][1]), to3dWorld(dataset, bbox))
+                dist = f_euclidian(to3dWorld(dataset2, predictions[dataset2][id][1]), to3dWorld(camera, bbox))
                 if dist < bestDist:
                     bestDist = dist
                     found = True
             if not found and points > 1:
                 newid = findfree(ids, False)
-                predictions[dataset][newid] = predictions[dataset][id]
-                predictions[dataset][id] = [None, None, 0]
-                for dataset2 in groupDataset:
-                    if dataset == dataset2: continue
+                predictions[camera][newid] = predictions[camera][id]
+                predictions[camera][id] = [None, None, 0]
+                for dataset2 in cameras:
+                    if camera == dataset2: continue
                     predictions[dataset2][newid] = [None, None, 0]
                 ids.append(newid)
                 id = newid
@@ -130,29 +133,29 @@ def estimateFromPredictions(predictions, ids, detector, groupDataset):
     for id in ids:
         if id >= 0: continue
         person = False
-        for dataset in groupDataset:
-            if predictions[dataset][id][2] < -FRAMES_PERSON:
+        for camera in cameras:
+            if predictions[camera][id][2] < -FRAMES_PERSON:
                 person = True
                 break
         if person:
             newid = findfree(ids, True)
-            for dataset in groupDataset:
-                predictions[dataset][newid] = predictions[dataset][id]
-                predictions[dataset][id] = [None, None, 0]
+            for camera in cameras:
+                predictions[camera][newid] = predictions[camera][id]
+                predictions[camera][id] = [None, None, 0]
             ids.remove(id)
             ids.append(newid)
 
     # assign detections
     if detector is not None:
-        for dataset in groupDataset:
-            for bbox in detector[dataset]:
+        for camera in cameras:
+            for bbox in detector[camera]:
 
                 # find best id
                 closestid = None
                 closestDist = DETECTION_DIST
 
                 for point, id in pos3d:
-                    dist = f_euclidian(point, to3dWorld(dataset, bbox))
+                    dist = f_euclidian(point, to3dWorld(camera, bbox))
                     if dist < closestDist:
                         closestDist = dist
                         closestid = id
@@ -160,26 +163,26 @@ def estimateFromPredictions(predictions, ids, detector, groupDataset):
                 # assign new prediction
                 if closestid is None:
                     closestid = findfree(ids, False)
-                    for dataset2 in groupDataset:
+                    for dataset2 in cameras:
                         predictions[dataset2][closestid] = [None, None, 0]
                     ids.append(closestid)
-                # if closestid in predictions[dataset] and predictions[dataset][closestid][1] is not None:
+                # if closestid in predictions[camera] and predictions[camera][closestid][1] is not None:
                 #    print "Overrided previous data"
-                predictions[dataset][closestid] = [None, bbox, 0]
+                predictions[camera][closestid] = [None, bbox, 0]
 
     # calculate dispersion of each id and remove empty ones
     newids = []
     for id in ids:
         maxdist = 0
         points = 0
-        for i, dataset in enumerate(groupDataset):
-            if predictions[dataset][id][1] is None: continue
+        for i, camera in enumerate(cameras):
+            if predictions[camera][id][1] is None: continue
             points += 1
-            for dataset2 in groupDataset[0:i]:
-                if dataset == dataset2: continue
+            for dataset2 in cameras[0:i]:
+                if camera == dataset2: continue
                 if predictions[dataset2][id][1] is None: continue
 
-                dist = f_euclidian(to3dWorld(dataset, predictions[dataset][id][1]), to3dWorld(dataset2, predictions[dataset2][id][1]))
+                dist = f_euclidian(to3dWorld(camera, predictions[camera][id][1]), to3dWorld(dataset2, predictions[dataset2][id][1]))
                 if dist > maxdist:
                     maxdist = dist
 
@@ -375,7 +378,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
     for dataset in groupDataset:
         videos[dataset].release()
 
-    return frame_index, data_detected
+    return frame_index, range(max(ids)+1), data_detected
 
 
 if __name__ == '__main__':
