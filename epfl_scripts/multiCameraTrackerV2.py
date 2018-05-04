@@ -32,7 +32,7 @@ def findfree(group, person):
     return free
 
 
-def mergeAllPredictions(predictions, ids, detector, groupDataset):
+def estimateFromPredictions(predictions, ids, detector, groupDataset):
     # predictions[dataset][id] = [ tracker, bbox, framesLost, {add as necessary} ]
     # for id in ids: etc
     # detector[dataset] = [ (bbox), ... ]
@@ -40,39 +40,46 @@ def mergeAllPredictions(predictions, ids, detector, groupDataset):
 
     pos3d = []
 
-    # update bboxes
-    for dataset in groupDataset:
-        detectorUsed = []
-        for id in ids:
-            tracker, bbox, framesLost = predictions[dataset][id]
-            if bbox is None: continue
+    if detector is not None:
+        # assign detector instances to predictions
+        for dataset in groupDataset:
+            detectorUsed = []
+            for id in ids:
+                tracker, bbox, framesLost = predictions[dataset][id]
+                if bbox is None: continue
 
-            # find closest detector to tracker
-            bestBbox = bbox
-            bestIoU = IOU_THRESHOLD
-            for detBbox in detector[dataset] + detectorUsed if detector is not None else []:
-                iou = f_iou(bbox, detBbox)
-                if iou > bestIoU:
-                    bestIoU = iou
-                    bestBbox = detBbox
+                # find closest detector to tracker
+                bestBbox = bbox
+                bestIoU = IOU_THRESHOLD
+                for detBbox in detector[dataset] + detectorUsed if detector is not None else []:
+                    iou = f_iou(bbox, detBbox)
+                    if iou > bestIoU:
+                        bestIoU = iou
+                        bestBbox = detBbox
 
-            if bestIoU > IOU_THRESHOLD:
-                # prediction found, remove from detections but keep for others
-                if bestBbox in detector[dataset]:
-                    detector[dataset].remove(bestBbox)
-                    detectorUsed.append(bestBbox)
-                framesLost = min(0, framesLost - 1)
-            elif detector is not None:
-                # not found, lost if detector was active
-                framesLost = max(0, framesLost + 1)
+                if bestIoU > IOU_THRESHOLD:
+                    # prediction found, remove from detections but keep for others
+                    if bestBbox in detector[dataset]:
+                        detector[dataset].remove(bestBbox)
+                        detectorUsed.append(bestBbox)
+                    framesLost = min(0, framesLost - 1)
+                elif detector is not None:
+                    # not found, lost if detector was active
+                    framesLost = max(0, framesLost + 1)
 
-            # update frame
-            if framesLost < FRAMES_LOST:
-                predictions[dataset][id] = [tracker if bestBbox == bbox else None, bestBbox, framesLost]
-                pos3d.append((to3dWorld(dataset, bestBbox), id))
-            else:
-                predictions[dataset][id] = [None, None, 0]
-
+                # update bbox with best bbox (original or new)
+                if framesLost < FRAMES_LOST:
+                    predictions[dataset][id] = [tracker if bestBbox == bbox else None, bestBbox, framesLost]
+                    pos3d.append((to3dWorld(dataset, bestBbox), id))
+                else:
+                    predictions[dataset][id] = [None, None, 0]
+    else:
+        # populate 3d info only
+        for dataset in groupDataset:
+            for id in ids:
+                bbox = predictions[dataset][id][1]
+                if bbox is not None:
+                    pos3d.append((to3dWorld(dataset, bbox), id))
     # update ids individually
     for i, id in enumerate(ids[:]):
         for dataset in groupDataset:
@@ -278,35 +285,35 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
         # detector needed
         detector_needed = frame_index % DETECTOR_FIRED == 0
 
-        # merge all predictions
-        predictions, ids = mergeAllPredictions(predictions, ids, detector[frame_index] if detector_needed else None, groupDataset)
+        # merge all predictions -> estimations
+        estimations, ids = estimateFromPredictions(predictions, ids, detector[frame_index] if detector_needed else None, groupDataset)
 
         # initialize new trackers
         for dataset in groupDataset:
             for id in ids:
-                tracker = predictions[dataset][id][0]
+                tracker = estimations[dataset][id][0]
                 if tracker is not None: continue
 
-                bbox = fixbbox(frames[dataset], predictions[dataset][id][1])
-                predictions[dataset][id][1] = bbox
+                bbox = fixbbox(frames[dataset], estimations[dataset][id][1])
+                estimations[dataset][id][1] = bbox
 
                 if bbox is not None:
                     # intialize tracker
                     tracker = getTracker(tracker_type)
                     try:
                         tracker.init(frames[dataset], bbox.getAsXmYmWH())
-                        predictions[dataset][id][0] = tracker
+                        estimations[dataset][id][0] = tracker
                     except BaseException:
                         print "Error on tracker init"
                 else:
                     # invalid bbox, remove old tracker
-                    predictions[dataset][id][0] = None
+                    estimations[dataset][id][0] = None
 
         # Show bounding boxes
         for dataset in groupDataset:
             data_detected[dataset][frame_index] = {}
             for id in ids:
-                bbox = predictions[dataset][id][1]
+                bbox = estimations[dataset][id][1]
                 if bbox is None: continue
 
                 if id >= 0:
@@ -334,7 +341,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
             frame = np.zeros((512, 512, 3), np.uint8)
             for dataset in groupDataset:
                 for id in ids:
-                    bbox = predictions[dataset][id][1]
+                    bbox = estimations[dataset][id][1]
                     if bbox is None: continue
 
                     px, py = to3dWorld(dataset, bbox).getAsXY()
@@ -355,6 +362,8 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
             # Read a new frame
             ok, frames[dataset] = videos[dataset].read()
             allOk = allOk and ok
+
+        predictions = estimations
 
         frame_index += 1
 
