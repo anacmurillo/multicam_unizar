@@ -15,8 +15,14 @@ from functools import wraps
 
 savedFolder = "_cache_/"
 
+# Constants
+TYPE_NORMAL = [False, False]
+TYPE_ALWAYS_EXECUTE = [True, False]
+TYPE_DONTSAVE = [False, True]
+TYPE_DISABLE = [True, True]
 
-def cache_function(name, forceLoad=lambda *args, **kwargs: False):
+
+def cache_function(name, type=lambda *args, **kwargs: TYPE_NORMAL):
     """
     Decorator to mark functions as cached under a name. (Memoization)
     The name is formatted {.format()} with the function parameters, to allow parameters-dependent caches
@@ -36,7 +42,6 @@ def cache_function(name, forceLoad=lambda *args, **kwargs: False):
 
         @wraps(func)
         def func_wrapper(*args, **kwargs):
-
             newargs = args[:positional_count]
             newkwargs = defaults.copy()
             newkwargs.update({k: v for k, v in zip(argspec.args[positional_count:], args[positional_count:])})
@@ -45,11 +50,18 @@ def cache_function(name, forceLoad=lambda *args, **kwargs: False):
             args = newargs
             kwargs = newkwargs
 
-            return cachedObject(name.format(*args, **kwargs), lambda: func(*args, **kwargs), forceLoad(*args, **kwargs))
+            forceLoad, dontSave = type(*args, **kwargs)
+            return cachedObject(name.format(*args, **kwargs), lambda: func(*args, **kwargs), forceLoad, dontSave)
 
         return func_wrapper
 
     return func_decorator
+
+
+cache_function.TYPE_NORMAL = TYPE_NORMAL
+cache_function.TYPE_ALWAYS_EXECUTE = TYPE_ALWAYS_EXECUTE
+cache_function.TYPE_DONTSAVE = TYPE_DONTSAVE
+cache_function.TYPE_DISABLE = TYPE_DISABLE
 
 
 ###################### internal ############################
@@ -76,18 +88,20 @@ def loadObject(name):
         return pickle.load(output)
 
 
-def cachedObject(name, default=lambda: None, forceLoad=False):
+def cachedObject(name, default=lambda: None, forceLoad=False, dontSave=False):
     """
     Implements a cached system.
     Tries to load the cached object with name 'name'.
     If found and 'forceLoad' is not false, returns it
     If not found or 'forceLoad' is True, evaluates the 'default' function, saves it under the name 'name' and returns it
+    If save is false, the object is not saved
     """
     if not forceLoad:
         saved = loadObject(name)
     if forceLoad or saved is None:
         saved = default()
-        saveObject(saved, name)
+        if not dontSave:
+            saveObject(saved, name)
     return saved
 
 
