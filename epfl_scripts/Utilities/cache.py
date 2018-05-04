@@ -17,22 +17,30 @@ savedFolder = "_cache_/"
 
 # Constants
 TYPE_NORMAL = [False, False]
-TYPE_ALWAYS_EXECUTE = [True, False]
+TYPE_ALWAYSEXECUTE = [True, False]
 TYPE_DONTSAVE = [False, True]
 TYPE_DISABLE = [True, True]
 
 
-def cache_function(name, type=lambda *args, **kwargs: TYPE_NORMAL):
+def cache_function(name, type=lambda *args, **kwargs: TYPE_NORMAL, timestamp=0):
     """
     Decorator to mark functions as cached under a name. (Memoization)
     The name is formatted {.format()} with the function parameters, to allow parameters-dependent caches
-    The forceload is a function which is passed the function parameters, to allow forceLoad under some conditions
-    If the name is already cached, the value is returned without evaluating the function.
-    If the name is not cached OR forceLoad returns true, the function is evaluated, saved and returned
+    The type is a function which is passed the function parameters, to allow changing the behaviour under some conditions
+    - TYPE_NORMAL:
+        If the name is already cached, the value is returned without evaluating the function.
+        If the name is not cached, the function is evaluated, saved and returned
+    - TYPE_ALWAYSEXECUTE:
+        The function is evaluated, saved and returned (either if cache exists or not)
+    - TYPE_DONTSAVE:
+        If the name is already cached, the value is returned without evaluating the function.
+        If the name is not cached, the function is evaluated and returned, but not saved
+    - TYPE_DISABLE:
+        The function is evaluated and returned. Existing cache, if any, is not modified. (Same as removing the decorator)
 
     Examples:   @cache_function("mycache") will store the cache under 'mycache'
                 @cache_function("{0}_cache") will store foo(1) under '1_cache', foo('s') under 's_cache', and so on.
-                @cache_function("mycache", lambda x: x<0) will always execute the function if the first parameter of the function is negative
+                @cache_function("mycache", lambda x: cache_function.TYPE_ALWAYSEXECUTE if x<0 else cache_function.TYPE_NORMAL) will always execute the function if the first parameter of the function is negative
     """
 
     def func_decorator(func):
@@ -51,7 +59,7 @@ def cache_function(name, type=lambda *args, **kwargs: TYPE_NORMAL):
             kwargs = newkwargs
 
             forceLoad, dontSave = type(*args, **kwargs)
-            return cachedObject(name.format(*args, **kwargs), lambda: func(*args, **kwargs), forceLoad, dontSave)
+            return cachedObject(name.format(*args, **kwargs), lambda: func(*args, **kwargs), forceLoad, dontSave, timestamp)
 
         return func_wrapper
 
@@ -59,7 +67,7 @@ def cache_function(name, type=lambda *args, **kwargs: TYPE_NORMAL):
 
 
 cache_function.TYPE_NORMAL = TYPE_NORMAL
-cache_function.TYPE_ALWAYS_EXECUTE = TYPE_ALWAYS_EXECUTE
+cache_function.TYPE_ALWAYS_EXECUTE = TYPE_ALWAYSEXECUTE
 cache_function.TYPE_DONTSAVE = TYPE_DONTSAVE
 cache_function.TYPE_DISABLE = TYPE_DISABLE
 
@@ -88,20 +96,20 @@ def loadObject(name):
         return pickle.load(output)
 
 
-def cachedObject(name, default=lambda: None, forceLoad=False, dontSave=False):
+def cachedObject(name, default=lambda: None, forceLoad=False, dontSave=False, timestamp=0):
     """
     Implements a cached system.
     Tries to load the cached object with name 'name'.
     If found and 'forceLoad' is not false, returns it
-    If not found or 'forceLoad' is True, evaluates the 'default' function, saves it under the name 'name' and returns it
-    If save is false, the object is not saved
+    If not found or 'forceLoad' is True or timestamp is different than saved one, evaluates the 'default' function, saves it under the name 'name'  unless dontSave is true, and returns it
     """
     if not forceLoad:
-        saved = loadObject(name)
-    if forceLoad or saved is None:
+        data = loadObject(name)
+        saved, stamp = data if data is not None else (None, None)
+    if forceLoad or saved is None or timestamp != stamp:
         saved = default()
         if not dontSave:
-            saveObject(saved, name)
+            saveObject((saved, timestamp), name)
     return saved
 
 
