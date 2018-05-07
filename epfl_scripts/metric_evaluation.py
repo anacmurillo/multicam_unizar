@@ -7,6 +7,7 @@ import matplotlib.patches as pltpatches
 import matplotlib.pyplot as plt
 import matplotlib.ticker as pltticker
 
+from epfl_scripts.Utilities.colorUtility import getColors
 from epfl_scripts.Utilities.cv2Trackers import evaluateTracker, getTrackers
 from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getGroupedDatasets
 from epfl_scripts.multiCameraTrackerV2 import evalMultiTracker
@@ -86,7 +87,7 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label
 
 
 def iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker, label):
-    plt.figure("iou_graph_"+label)
+    plt.figure("iou_graph_" + label)
 
     colors = ['black', 'purple', 'blue', 'red', 'green']
     labels = ['Not present', 'Tracker found ghost', 'Tracker didn\'t found', 'Totally Missed (IOU=0)', 'Perfect Found (IUO=1)']
@@ -95,10 +96,10 @@ def iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker, label):
     binaries = getTrackType(gt_ids, n_frames, data_groundTruth, data_tracker)
     minorTicks = []
     for index, id in enumerate(gt_ids):
-        x = range(len(binaries[id]))
+        x = range(n_frames)
         y = []
-        for y_index in x:
-            val = binaries[id][y_index]
+        for frame in x:
+            val = binaries[id][frame]
             val = val if val >= 0 else 1 if val == -3 else 0
             y.append(index - 0.3 + val * 0.6)
         minorTicks.extend([index - 0.3, index + 0.3])
@@ -118,16 +119,36 @@ def iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker, label):
     plt.grid(True, which='minor', axis='y', linestyle='-')
 
 
-def id_graph(gt_ids, data_groundTruth, n_frames, n_ids, data_tracker, label):
-    return
-    #plt.figure("id_graph_" + label)
-    #
-    #colors = getColors(n_ids)
-#
-    #for gt_index, gt_id in enumerate(gt_ids):
-    #    for
-    #    for
-    #    plt.scatter(x, y, s=25, c=binaries[id], marker='|', edgecolors='none', cmap=colormap)
+def id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label):
+    plt.figure("id_graph_" + label)
+
+    colors = getColors(len(gt_ids))
+    x = range(n_frames)
+    normalization = pltcolors.Normalize(vmin=0, vmax=1)
+    minorTicks = []
+
+    for gt_index, gt_id in enumerate(tr_ids):
+        for tr_index, tr_id in enumerate(gt_ids):
+            y = [tr_index * 0.9 / len(gt_ids) - 0.45 + gt_index] * n_frames
+            c = []
+            colormap = pltcolors.LinearSegmentedColormap.from_list('name', [(0.5, 0.5, 0.5), tuple(v / 255. for v in colors[tr_index])])
+            for frame in x:
+                try:
+                    c.append(f_iou(data_tracker[frame][gt_id], data_groundTruth[frame][tr_id]))
+                except KeyError:
+                    c.append(0)
+
+            plt.scatter(x, y, s=10, c=c, marker='|', edgecolors='none', cmap=colormap, norm=normalization)
+            minorTicks.append(y[0])
+    plt.xlim([0, n_frames])
+    plt.ylim([-0.9, len(tr_ids) - 1 + 0.9])
+    plt.title(label)
+    plt.xlabel('frames')
+    plt.ylabel('persons (groundtruth/tracker)')
+    plt.yticks(*zip(*list(enumerate(tr_ids))))
+    plt.gca().yaxis.set_minor_locator(pltticker.FixedLocator(minorTicks))
+    plt.grid(False, which='major', axis='y', linestyle='-')
+    plt.grid(True, which='minor', axis='y', linestyle=':')
 
 
 def precision_recall(id, frames, groundtruth, tracker, threshold):
