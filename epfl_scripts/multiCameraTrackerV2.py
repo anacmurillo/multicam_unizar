@@ -16,9 +16,9 @@ cv2.configure(100)
 DETECTOR_FIRED = 5  # after this number of frames the detector is evaluated
 
 IOU_THRESHOLD = 0.5  # minimum iou to assign a detection to a prediction
-FRAMES_LOST = 5  # maximum number of frames until the detection is removed
+FRAMES_LOST = 5  # maximum number of detections until the detection is removed
 
-FRAMES_PERSON = 10  # after this number of frames with at least one camera tracking a target (id<0), it is assigned as person (id>=0)
+FRAMES_PERSON = 10  # after this number of detections with at least one camera tracking a target (id<0), it is assigned as person (id>=0)
 
 CLOSEST_DIST = 20  # if an existing point is closer than this to a different point id, it is assigned that same id
 FARTHEST_DIST = 50  # if an existing point is farther than the rest of the group, it is removed
@@ -27,7 +27,7 @@ DETECTION_DIST = 50  # if a new point is closer than this to an existing point, 
 
 def findfree(group, person):
     if person:
-        return max(group+[-1]) + 1
+        return max(group + [-1]) + 1
     else:
         free = -1
         while free in group:
@@ -43,6 +43,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
 
     pos3d = []
 
+    # phase 1: update bbox with detection (if available)
     if detector is not None:
         # assign detector instances to predictions
         for camera in cameras:
@@ -66,7 +67,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
                         detector[camera].remove(bestBbox)
                         detectorUsed.append(bestBbox)
                     framesLost = min(0, framesLost - 1)
-                elif detector is not None:
+                else:
                     # not found, lost if detector was active
                     framesLost = max(0, framesLost + 1)
 
@@ -83,31 +84,15 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
                 bbox = predictions[camera][id][1]
                 if bbox is not None:
                     pos3d.append((to3dWorld(camera, bbox), id))
+
     # update ids individually
+    # phase 2: change id to nearest
     for i, id in enumerate(ids[:]):
         for camera in cameras:
             tracker, bbox, framesLost = predictions[camera][id]
             if bbox is None: continue
 
-            # find closest other id
-            bestId = None
-            bestDist = CLOSEST_DIST
-            for id2 in ids[0:i]:
-                if predictions[camera][id2][1] is not None: continue
-                for dataset2 in cameras:
-                    if id == id2 and camera == dataset2: continue
-                    if predictions[dataset2][id2][1] is None: continue
-
-                    dist = f_euclidian(to3dWorld(dataset2, predictions[dataset2][id2][1]), to3dWorld(camera, bbox))
-                    if dist < bestDist:
-                        bestId = id2
-                        bestDist = dist
-            if bestId is not None:
-                predictions[camera][bestId] = predictions[camera][id]
-                predictions[camera][id] = [None, None, 0]
-                id = bestId
-
-            # find closest id in group
+            # phase 2.1: find closest id in group, if far enough, change
             bestDist = FARTHEST_DIST
             found = False
             points = 1
@@ -123,13 +108,31 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
                 newid = findfree(ids, False)
                 predictions[camera][newid] = predictions[camera][id]
                 predictions[camera][id] = [None, None, 0]
+                predictions[camera][newid][2] = 0
                 for dataset2 in cameras:
                     if camera == dataset2: continue
                     predictions[dataset2][newid] = [None, None, 0]
                 ids.append(newid)
                 id = newid
 
-    # set target as person if tracked continuously
+            # phase 2.2: find closest other point, if other id without point, change to that
+            bestId = None
+            bestDist = CLOSEST_DIST
+            for id2 in ids[0:i+1]:
+                for dataset2 in cameras:
+                    if id == id2 and camera == dataset2: continue
+                    if predictions[dataset2][id2][1] is None: continue
+
+                    dist = f_euclidian(to3dWorld(dataset2, predictions[dataset2][id2][1]), to3dWorld(camera, bbox))
+                    if dist < bestDist:
+                        bestId = id2
+                        bestDist = dist
+            if bestId is not None and predictions[camera][bestId][1] is None:
+                predictions[camera][bestId] = predictions[camera][id]
+                predictions[camera][id] = [None, None, 0]
+                id = bestId
+
+    # phase 3: set target as person if tracked continuously
     for id in ids:
         if id >= 0: continue
         person = False
@@ -145,7 +148,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
             ids.remove(id)
             ids.append(newid)
 
-    # assign detections
+    # phase 4: assign unused detections to new targets
     if detector is not None:
         for camera in cameras:
             for bbox in detector[camera]:
@@ -170,7 +173,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
                 #    print "Overrided previous data"
                 predictions[camera][closestid] = [None, bbox, 0]
 
-    # calculate dispersion of each id and remove empty ones
+    # phase 5: calculate dispersion of each id and remove empty ones
     newids = []
     for id in ids:
         maxdist = 0
@@ -192,6 +195,8 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
         if points > 0:
             newids.append(id)
     ids = newids
+
+    # TODO: average point, move rectangles
 
     return predictions, ids
 
@@ -378,7 +383,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
     for dataset in groupDataset:
         videos[dataset].release()
 
-    return frame_index, range(max(ids)+1), data_detected
+    return frame_index, range(max(ids) + 1), data_detected
 
 
 if __name__ == '__main__':
