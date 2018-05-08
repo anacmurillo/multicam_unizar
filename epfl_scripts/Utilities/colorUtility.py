@@ -1,8 +1,5 @@
 """
- Create a list of distinct colors
-
- normal usage:
- colors = getColors(n)
+ Color utilities
 
 """
 
@@ -22,5 +19,16 @@ def getColors(n):
 
 
 def blendColors(a, b, t):
+    """
+    Returns the blending of the colors based on a 0-1 param.
+    t=0 -> return a
+    t=1 -> return b
+    t=0.5 -> return (a+b)/2
+    etc
+    :param a: first color
+    :param b: second color
+    :param t: 0-1 param
+    :return: color
+    """
     # return (math.sqrt((1 - t) * x**2 + t * y**2) for x, y in zip(a, b))
     return ((1 - t) * x + t * y for x, y in zip(a, b))
