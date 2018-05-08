@@ -6,8 +6,9 @@ import matplotlib.colors as pltcolors
 import matplotlib.patches as pltpatches
 import matplotlib.pyplot as plt
 import matplotlib.ticker as pltticker
+import numpy as np
 
-from epfl_scripts.Utilities.colorUtility import getColors
+from epfl_scripts.Utilities.colorUtility import getColors, blendColors
 from epfl_scripts.Utilities.cv2Trackers import evaluateTracker, getTrackers
 from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getGroupedDatasets
 from epfl_scripts.multiCameraTrackerV2 import evalMultiTracker
@@ -122,36 +123,30 @@ def iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker, label):
 def id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label):
     plt.figure("id_graph_" + label)
 
-    colors = getColors(len(gt_ids))
-    x = range(n_frames)
-    normalization = pltcolors.Normalize(vmin=0, vmax=1)
-    minorTicks = []
+    tr_len = len(tr_ids)
+    gt_len = len(gt_ids)
+    grid = np.zeros([gt_len * tr_len, n_frames, 3], dtype=np.uint8)
 
-    for gt_index, gt_id in enumerate(tr_ids):
-        for tr_index, tr_id in enumerate(gt_ids):
-            y = [tr_index * 0.8 / (len(gt_ids) - 1) - 0.4 + gt_index] * n_frames
-            c = []
-            colormap = pltcolors.LinearSegmentedColormap.from_list('name', [(1, 1, 1), tuple(v / 255. for v in colors[tr_index])])
-            for frame in x:
-                try:
-                    c.append(f_iou(data_tracker[frame][gt_id], data_groundTruth[frame][tr_id]))
-                except KeyError:
-                    c.append(0)
+    colors = getColors(gt_len)
 
-            plt.scatter(x, y, s=10, c=c, marker='s', edgecolors='none', cmap=colormap, norm=normalization)
-            minorTicks.append(y[0])
-    plt.xlim([0, n_frames])
-    plt.ylim([-0.5, len(tr_ids) - 1 + 0.5])
-    plt.title(label)
+    for frame in range(n_frames):
+        for tr_index, tr_id in enumerate(tr_ids):
+            for gt_index, gt_id in enumerate(gt_ids):
+                bbox_gt = getBboxFromGroundtruth(data_groundTruth[frame][gt_id])
+                bbox_tr = data_tracker[frame].get(tr_id, None)
+                if bbox_gt is not None and bbox_tr is not None:
+                    color = f_iou(bbox_gt, bbox_tr)
+                else:
+                    color = 0.
+                grid[tr_index * gt_len + gt_index, frame] = list(blendColors((255., 255., 255.), colors[gt_index], color))
+    plt.imshow(grid, extent=[0, grid.shape[1], 0, grid.shape[0]], aspect='auto', interpolation='none', origin='lower')
+    plt.yticks(*zip(*[(i * gt_len + gt_len / 2., x) for i, x in enumerate(tr_ids)]))
+    plt.gca().yaxis.set_minor_locator(pltticker.FixedLocator(range(grid.shape[0])))
     plt.xlabel('frames')
     plt.ylabel('persons (tracker/groundtruth)')
-    plt.yticks(*zip(*list(enumerate(tr_ids))))
-    plt.gca().yaxis.set_minor_locator(pltticker.FixedLocator(minorTicks))
-    plt.grid(False, which='major', axis='y', linestyle='')
-    plt.grid(True, which='minor', axis='y', linestyle=':')
-    for i in range(len(tr_ids)-1):
-        plt.axhline(y=i + 0.5, color='black', linestyle='-')
-
+    for tr_index in range(tr_len):
+        for gt_index in range(gt_len):
+            plt.axhline(y=tr_index * gt_len + gt_index + 1, color='black', linestyle=':' if gt_index != gt_len - 1 else '-')
 
 
 def precision_recall(id, frames, groundtruth, tracker, threshold):
@@ -164,8 +159,7 @@ def precision_recall(id, frames, groundtruth, tracker, threshold):
     true_positive = 0.  # tracker and groundtruth found the same person
 
     for frame in range(frames):
-        xmin, ymin, xmax, ymax, lost, occluded, generated, label = groundtruth[frame][id]
-        bbox_gt = None if lost else [xmin, ymin, xmax, ymax]
+        bbox_gt = getBboxFromGroundtruth(groundtruth[frame][id])
         bbox_tr = tracker[frame].get(id, None)
 
         if bbox_gt is None and bbox_tr is None:
@@ -198,8 +192,7 @@ def mota(ids, frames, groundtruth, tracker):
         mme = 0.  # number of mismatches (persons found but not from this groundtruth)
         gt = 0.  # number of groundtruth available
         for frame in range(frames):
-            xmin, ymin, xmax, ymax, lost, occluded, generated, label = groundtruth[frame][id]
-            bbox_gt = None if lost else [xmin, ymin, xmax, ymax]
+            bbox_gt = getBboxFromGroundtruth(groundtruth[frame][id])
             bbox_tr = tracker[frame].get(id, None)
 
             if bbox_gt is not None:
@@ -232,8 +225,7 @@ def motp(ids, frames, groundtruth, tracker):
         distance = 0.
         matches = 0.
         for frame in range(frames):
-            xmin, ymin, xmax, ymax, lost, occluded, generated, label = groundtruth[frame][id]
-            bbox_gt = None if lost else [xmin, ymin, xmax, ymax]
+            bbox_gt = getBboxFromGroundtruth(groundtruth[frame][id])
             bbox_tr = tracker[frame].get(id, None)
 
             if bbox_gt is not None and bbox_tr is not None:
@@ -259,8 +251,7 @@ def getTrackType(ids, frames, groundtruth, tracker):
     for id in ids:
         binary = []  # type of each frame
         for frame in range(frames):
-            xmin, ymin, xmax, ymax, lost, occluded, generated, label = groundtruth[frame][id]
-            bbox_gt = None if lost else [xmin, ymin, xmax, ymax]
+            bbox_gt = getBboxFromGroundtruth(groundtruth[frame][id])
             bbox_tr = tracker[frame].get(id, None)
 
             if bbox_gt is None and bbox_tr is None:
@@ -274,6 +265,11 @@ def getTrackType(ids, frames, groundtruth, tracker):
         binaries[id] = binary
 
     return binaries
+
+
+def getBboxFromGroundtruth(data):
+    xmin, ymin, xmax, ymax, lost, occluded, generated, label = data
+    return None if lost else [xmin, ymin, xmax, ymax]
 
 
 ######################### utilities #######################

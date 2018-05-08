@@ -19,3 +19,8 @@ def getColors(n):
     for i in range(n):
         colors.append(tuple(255 * x for x in colorsys.hsv_to_rgb(i * 1.0 / n, 1, 1)))
     return colors
+
+
+def blendColors(a, b, t):
+    # return (math.sqrt((1 - t) * x**2 + t * y**2) for x, y in zip(a, b))
+    return ((1 - t) * x + t * y for x, y in zip(a, b))
