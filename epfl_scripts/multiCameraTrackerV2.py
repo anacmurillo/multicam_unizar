@@ -66,7 +66,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
                     if bestBbox in detector[camera]:
                         detector[camera].remove(bestBbox)
                         detectorUsed.append(bestBbox)
-                    framesLost = min(0, framesLost - 1)
+                    framesLost = min(0, framesLost - 1)  # TODO: this always, each frame
                 else:
                     # not found, lost if detector was active
                     framesLost = max(0, framesLost + 1)
@@ -93,6 +93,8 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
             if bbox is None: continue
 
             # phase 2.1: find closest id in group, if far enough, change
+            # TODO: change to center of group
+            # TODO change only if counter >= x
             bestDist = FARTHEST_DIST
             found = False
             points = 1
@@ -116,6 +118,8 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
                 id = newid
 
             # phase 2.2: find closest other point, if other id without point, change to that
+            # TODO change to center of groups
+            # TODO change only if counter >= x
             bestId = None
             bestDist = CLOSEST_DIST
             for id2 in ids[0:i+1]:
@@ -149,6 +153,8 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
             ids.append(newid)
 
     # phase 4: assign unused detections to new targets
+    # TODO Move before phase 2
+    # TODO: initialize only if cameras support decision
     if detector is not None:
         for camera in cameras:
             for bbox in detector[camera]:
@@ -197,6 +203,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
     ids = newids
 
     # TODO: average point, move rectangles
+
 
     return predictions, ids
 

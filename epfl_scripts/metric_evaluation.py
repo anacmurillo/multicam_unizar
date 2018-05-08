@@ -129,26 +129,29 @@ def id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label):
 
     for gt_index, gt_id in enumerate(tr_ids):
         for tr_index, tr_id in enumerate(gt_ids):
-            y = [tr_index * 0.9 / len(gt_ids) - 0.45 + gt_index] * n_frames
+            y = [tr_index * 0.8 / (len(gt_ids) - 1) - 0.4 + gt_index] * n_frames
             c = []
-            colormap = pltcolors.LinearSegmentedColormap.from_list('name', [(0.5, 0.5, 0.5), tuple(v / 255. for v in colors[tr_index])])
+            colormap = pltcolors.LinearSegmentedColormap.from_list('name', [(1, 1, 1), tuple(v / 255. for v in colors[tr_index])])
             for frame in x:
                 try:
                     c.append(f_iou(data_tracker[frame][gt_id], data_groundTruth[frame][tr_id]))
                 except KeyError:
                     c.append(0)
 
-            plt.scatter(x, y, s=10, c=c, marker='|', edgecolors='none', cmap=colormap, norm=normalization)
+            plt.scatter(x, y, s=10, c=c, marker='s', edgecolors='none', cmap=colormap, norm=normalization)
             minorTicks.append(y[0])
     plt.xlim([0, n_frames])
-    plt.ylim([-0.9, len(tr_ids) - 1 + 0.9])
+    plt.ylim([-0.5, len(tr_ids) - 1 + 0.5])
     plt.title(label)
     plt.xlabel('frames')
-    plt.ylabel('persons (groundtruth/tracker)')
+    plt.ylabel('persons (tracker/groundtruth)')
     plt.yticks(*zip(*list(enumerate(tr_ids))))
     plt.gca().yaxis.set_minor_locator(pltticker.FixedLocator(minorTicks))
-    plt.grid(False, which='major', axis='y', linestyle='-')
+    plt.grid(False, which='major', axis='y', linestyle='')
     plt.grid(True, which='minor', axis='y', linestyle=':')
+    for i in range(len(tr_ids)-1):
+        plt.axhline(y=i + 0.5, color='black', linestyle='-')
+
 
 
 def precision_recall(id, frames, groundtruth, tracker, threshold):
