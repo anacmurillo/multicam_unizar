@@ -16,9 +16,9 @@ cv2.configure(100)
 DETECTOR_FIRED = 5  # after this number of frames the detector is evaluated
 
 IOU_THRESHOLD = 0.5  # minimum iou to assign a detection to a prediction
-FRAMES_LOST = 5  # maximum number of detections until the detection is removed
+FRAMES_LOST = 25  # maximum number of frames until the detection is removed
 
-FRAMES_PERSON = 10  # after this number of detections with at least one camera tracking a target (id<0), it is assigned as person (id>=0)
+FRAMES_PERSON = 50  # after this number of frames with at least one camera tracking a target (id<0), it is assigned as person (id>=0)
 
 CLOSEST_DIST = 20  # if an existing point is closer than this to a different point id, it is assigned that same id
 FARTHEST_DIST = 50  # if an existing point is farther than the rest of the group, it is removed
@@ -36,7 +36,7 @@ def findfree(group, person):
 
 
 def estimateFromPredictions(predictions, ids, detector, cameras):
-    # predictions[camera][id] = [ tracker, bbox, framesLost, {add as necessary} ]
+    # predictions[camera][id] = [ tracker, bbox, framesLost, trackerInfo {add as necessary} ]
     # for id in ids: etc
     # detector[camera] = [ (bbox), ... ]
     # for camera in cameras: etc
@@ -49,13 +49,13 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
         for camera in cameras:
             detectorUsed = []
             for id in ids:
-                tracker, bbox, framesLost = predictions[camera][id]
+                tracker, bbox, framesLost, tracker_found = predictions[camera][id]
                 if bbox is None: continue
 
                 # find closest detector to tracker
                 bestBbox = bbox
                 bestIoU = IOU_THRESHOLD
-                for detBbox in detector[camera] + detectorUsed if detector is not None else []:
+                for detBbox in detector[camera] + detectorUsed:
                     iou = f_iou(bbox, detBbox)
                     if iou > bestIoU:
                         bestIoU = iou
@@ -65,31 +65,51 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
                     # prediction found, remove from detections but keep for others
                     if bestBbox in detector[camera]:
                         detector[camera].remove(bestBbox)
-                        detectorUsed.append(bestBbox)
-                    framesLost = min(0, framesLost - 1)  # TODO: this always, each frame
+                        # detectorUsed.append(bestBbox)
+                    tracker_found = True
                 else:
                     # not found, lost if detector was active
-                    framesLost = max(0, framesLost + 1)
+                    tracker_found = False
 
                 # update bbox with best bbox (original or new)
-                if framesLost < FRAMES_LOST:
-                    predictions[camera][id] = [tracker if bestBbox == bbox else None, bestBbox, framesLost]
-                    pos3d.append((to3dWorld(camera, bestBbox), id))
-                else:
-                    predictions[camera][id] = [None, None, 0]
-    else:
-        # populate 3d info only
-        for camera in cameras:
-            for id in ids:
-                bbox = predictions[camera][id][1]
+                predictions[camera][id] = [tracker if bestBbox == bbox else None, bestBbox, framesLost, tracker_found]
+
+    # phase 2: populate 3d info and remove if lost enough times
+    for camera in cameras:
+        for id in ids:
+            tracker, bbox, framesLost, tracker_found = predictions[camera][id]
+
+            if bbox is not None and tracker_found:
+                framesLost = min(0, framesLost - 1)
+            else:
+                framesLost = max(0, framesLost + 1)
+
+            if framesLost < FRAMES_LOST:
+                predictions[camera][id][2] = framesLost
+
+                # add 3d
                 if bbox is not None:
                     pos3d.append((to3dWorld(camera, bbox), id))
+            else:
+                predictions[camera][id] = [None, None, 0, False]
+
+    # phase 4: assign unused detections to new targets
+    # TODO: initialize only if cameras support decision
+    if detector is not None:
+        for camera in cameras:
+            for bbox in detector[camera]:
+
+                id = findfree(ids, False)
+                for dataset2 in cameras:
+                    predictions[dataset2][id] = [None, None, 0, False]
+                predictions[camera][id] = [None, bbox, 0, False]
+                ids.append(id)
 
     # update ids individually
     # phase 2: change id to nearest
     for i, id in enumerate(ids[:]):
         for camera in cameras:
-            tracker, bbox, framesLost = predictions[camera][id]
+            tracker, bbox, framesLost, tracker_found = predictions[camera][id]
             if bbox is None: continue
 
             # phase 2.1: find closest id in group, if far enough, change
@@ -109,11 +129,11 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
             if not found and points > 1:
                 newid = findfree(ids, False)
                 predictions[camera][newid] = predictions[camera][id]
-                predictions[camera][id] = [None, None, 0]
+                predictions[camera][id] = [None, None, 0, False]
                 predictions[camera][newid][2] = 0
                 for dataset2 in cameras:
                     if camera == dataset2: continue
-                    predictions[dataset2][newid] = [None, None, 0]
+                    predictions[dataset2][newid] = [None, None, 0, False]
                 ids.append(newid)
                 id = newid
 
@@ -122,7 +142,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
             # TODO change only if counter >= x
             bestId = None
             bestDist = CLOSEST_DIST
-            for id2 in ids[0:i+1]:
+            for id2 in ids[0:i + 1]:
                 for dataset2 in cameras:
                     if id == id2 and camera == dataset2: continue
                     if predictions[dataset2][id2][1] is None: continue
@@ -133,7 +153,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
                         bestDist = dist
             if bestId is not None and predictions[camera][bestId][1] is None:
                 predictions[camera][bestId] = predictions[camera][id]
-                predictions[camera][id] = [None, None, 0]
+                predictions[camera][id] = [None, None, 0, False]
                 id = bestId
 
     # phase 3: set target as person if tracked continuously
@@ -148,36 +168,9 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
             newid = findfree(ids, True)
             for camera in cameras:
                 predictions[camera][newid] = predictions[camera][id]
-                predictions[camera][id] = [None, None, 0]
+                predictions[camera][id] = [None, None, 0, False]
             ids.remove(id)
             ids.append(newid)
-
-    # phase 4: assign unused detections to new targets
-    # TODO Move before phase 2
-    # TODO: initialize only if cameras support decision
-    if detector is not None:
-        for camera in cameras:
-            for bbox in detector[camera]:
-
-                # find best id
-                closestid = None
-                closestDist = DETECTION_DIST
-
-                for point, id in pos3d:
-                    dist = f_euclidian(point, to3dWorld(camera, bbox))
-                    if dist < closestDist:
-                        closestDist = dist
-                        closestid = id
-
-                # assign new prediction
-                if closestid is None:
-                    closestid = findfree(ids, False)
-                    for dataset2 in cameras:
-                        predictions[dataset2][closestid] = [None, None, 0]
-                    ids.append(closestid)
-                # if closestid in predictions[camera] and predictions[camera][closestid][1] is not None:
-                #    print "Overrided previous data"
-                predictions[camera][closestid] = [None, bbox, 0]
 
     # phase 5: calculate dispersion of each id and remove empty ones
     newids = []
@@ -203,7 +196,6 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
     ids = newids
 
     # TODO: average point, move rectangles
-
 
     return predictions, ids
 
