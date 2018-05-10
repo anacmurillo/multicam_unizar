@@ -35,8 +35,19 @@ def findfree(group, person):
         return free
 
 
+class Prediction:
+    def __init__(self, tracker=None, bbox=None, framesLost=0, trackerFound=False):
+        self.tracker = tracker
+        self.bbox = bbox
+        self.framesLost = framesLost
+        self.trackerFound = trackerFound
+
+    def reset(self):
+        self.__init__()
+
+
 def estimateFromPredictions(predictions, ids, detector, cameras):
-    # predictions[camera][id] = [ tracker, bbox, framesLost, trackerInfo {add as necessary} ]
+    # predictions[camera][id] = prediction class
     # for id in ids: etc
     # detector[camera] = [ (bbox), ... ]
     # for camera in cameras: etc
@@ -49,14 +60,14 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
         for camera in cameras:
             detectorUsed = []
             for id in ids:
-                tracker, bbox, framesLost, tracker_found = predictions[camera][id]
-                if bbox is None: continue
+                prediction = predictions[camera][id]
+                if prediction.bbox is None: continue
 
                 # find closest detector to tracker
-                bestBbox = bbox
+                bestBbox = prediction.bbox
                 bestIoU = IOU_THRESHOLD
                 for detBbox in detector[camera] + detectorUsed:
-                    iou = f_iou(bbox, detBbox)
+                    iou = f_iou(prediction.bbox, detBbox)
                     if iou > bestIoU:
                         bestIoU = iou
                         bestBbox = detBbox
@@ -65,33 +76,35 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
                     # prediction found, remove from detections but keep for others
                     if bestBbox in detector[camera]:
                         detector[camera].remove(bestBbox)
-                        # detectorUsed.append(bestBbox)
-                    tracker_found = True
+                        detectorUsed.append(bestBbox)
+                        prediction.trackerFound = True
                 else:
                     # not found, lost if detector was active
-                    tracker_found = False
+                    prediction.trackerFound = False
 
-                # update bbox with best bbox (original or new)
-                predictions[camera][id] = [tracker if bestBbox == bbox else None, bestBbox, framesLost, tracker_found]
+                # update prediction
+                if bestBbox != prediction.bbox:
+                    prediction.tracker = None
+                prediction.bbox = bestBbox
 
     # phase 2: populate 3d info and remove if lost enough times
     for camera in cameras:
         for id in ids:
-            tracker, bbox, framesLost, tracker_found = predictions[camera][id]
+            prediction = predictions[camera][id]
 
-            if bbox is not None and tracker_found:
-                framesLost = min(0, framesLost - 1)
+            if prediction.bbox is not None and prediction.trackerFound:
+                framesLost = min(0, prediction.framesLost - 1)
             else:
-                framesLost = max(0, framesLost + 1)
+                framesLost = max(0, prediction.framesLost + 1)
 
             if framesLost < FRAMES_LOST:
-                predictions[camera][id][2] = framesLost
+                prediction.framesLost = framesLost
 
                 # add 3d
-                if bbox is not None:
-                    pos3d.append((to3dWorld(camera, bbox), id))
+                if prediction.bbox is not None:
+                    pos3d.append((to3dWorld(camera, prediction.bbox), id))
             else:
-                predictions[camera][id] = [None, None, 0, False]
+                predictions[camera][id] = Prediction()
 
     # phase 4: assign unused detections to new targets
     # TODO: initialize only if cameras support decision
@@ -100,17 +113,17 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
             for bbox in detector[camera]:
 
                 id = findfree(ids, False)
-                for dataset2 in cameras:
-                    predictions[dataset2][id] = [None, None, 0, False]
-                predictions[camera][id] = [None, bbox, 0, False]
+                for camera2 in cameras:
+                    predictions[camera2][id] = Prediction()
+                predictions[camera][id] = Prediction(bbox=bbox)
                 ids.append(id)
 
     # update ids individually
     # phase 2: change id to nearest
     for i, id in enumerate(ids[:]):
         for camera in cameras:
-            tracker, bbox, framesLost, tracker_found = predictions[camera][id]
-            if bbox is None: continue
+            prediction = predictions[camera][id]
+            if prediction.bbox is None: continue
 
             # phase 2.1: find closest id in group, if far enough, change
             # TODO: change to center of group
@@ -118,22 +131,22 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
             bestDist = FARTHEST_DIST
             found = False
             points = 1
-            for dataset2 in cameras:
-                if dataset2 == camera: continue
-                if predictions[dataset2][id][1] is None: continue
+            for camera2 in cameras:
+                if camera2 == camera: continue
+                if predictions[camera2][id].bbox is None: continue
                 points += 1
-                dist = f_euclidian(to3dWorld(dataset2, predictions[dataset2][id][1]), to3dWorld(camera, bbox))
+                dist = f_euclidian(to3dWorld(camera2, predictions[camera2][id].bbox), to3dWorld(camera, prediction.bbox))
                 if dist < bestDist:
                     bestDist = dist
                     found = True
             if not found and points > 1:
                 newid = findfree(ids, False)
-                predictions[camera][newid] = predictions[camera][id]
-                predictions[camera][id] = [None, None, 0, False]
-                predictions[camera][newid][2] = 0
-                for dataset2 in cameras:
-                    if camera == dataset2: continue
-                    predictions[dataset2][newid] = [None, None, 0, False]
+                predictions[camera][newid] = prediction
+                prediction.framesLost = 0
+                predictions[camera][id] = Prediction()
+                for camera2 in cameras:
+                    if camera == camera2: continue
+                    predictions[camera2][newid] = Prediction()
                 ids.append(newid)
                 id = newid
 
@@ -143,17 +156,17 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
             bestId = None
             bestDist = CLOSEST_DIST
             for id2 in ids[0:i + 1]:
-                for dataset2 in cameras:
-                    if id == id2 and camera == dataset2: continue
-                    if predictions[dataset2][id2][1] is None: continue
+                for camera2 in cameras:
+                    if id == id2 and camera == camera2: continue
+                    if predictions[camera2][id2].bbox is None: continue
 
-                    dist = f_euclidian(to3dWorld(dataset2, predictions[dataset2][id2][1]), to3dWorld(camera, bbox))
+                    dist = f_euclidian(to3dWorld(camera2, predictions[camera2][id2].bbox), to3dWorld(camera, prediction.bbox))
                     if dist < bestDist:
                         bestId = id2
                         bestDist = dist
-            if bestId is not None and predictions[camera][bestId][1] is None:
+            if bestId is not None and predictions[camera][bestId].bbox is None:
                 predictions[camera][bestId] = predictions[camera][id]
-                predictions[camera][id] = [None, None, 0, False]
+                predictions[camera][id] = Prediction()
                 id = bestId
 
     # phase 3: set target as person if tracked continuously
@@ -161,14 +174,14 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
         if id >= 0: continue
         person = False
         for camera in cameras:
-            if predictions[camera][id][2] < -FRAMES_PERSON:
+            if predictions[camera][id].framesLost < -FRAMES_PERSON:
                 person = True
                 break
         if person:
             newid = findfree(ids, True)
             for camera in cameras:
                 predictions[camera][newid] = predictions[camera][id]
-                predictions[camera][id] = [None, None, 0, False]
+                predictions[camera][id] = Prediction()
             ids.remove(id)
             ids.append(newid)
 
@@ -178,13 +191,13 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
         maxdist = 0
         points = 0
         for i, camera in enumerate(cameras):
-            if predictions[camera][id][1] is None: continue
+            if predictions[camera][id].bbox is None: continue
             points += 1
-            for dataset2 in cameras[0:i]:
-                if camera == dataset2: continue
-                if predictions[dataset2][id][1] is None: continue
+            for camera2 in cameras[0:i]:
+                if camera == camera2: continue
+                if predictions[camera2][id].bbox is None: continue
 
-                dist = f_euclidian(to3dWorld(camera, predictions[camera][id][1]), to3dWorld(dataset2, predictions[dataset2][id][1]))
+                dist = f_euclidian(to3dWorld(camera, predictions[camera][id].bbox), to3dWorld(camera2, predictions[camera2][id].bbox))
                 if dist > maxdist:
                     maxdist = dist
 
@@ -283,11 +296,11 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
         # parse trackers
         for dataset in groupDataset:
             for id in ids:
-                tracker = predictions[dataset][id][0]
+                tracker = predictions[dataset][id].tracker
                 if tracker is not None:
                     # get tracker prediction
                     ok, bbox = tracker.update(frames[dataset])
-                    predictions[dataset][id][1] = Bbox.XmYmWH(*bbox) if ok else None
+                    predictions[dataset][id].bbox = Bbox.XmYmWH(*bbox) if ok else None
 
         # detector needed
         detector_needed = frame_index % DETECTOR_FIRED == 0
@@ -298,29 +311,29 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
         # initialize new trackers
         for dataset in groupDataset:
             for id in ids:
-                tracker = estimations[dataset][id][0]
+                tracker = estimations[dataset][id].tracker
                 if tracker is not None: continue
 
-                bbox = fixbbox(frames[dataset], estimations[dataset][id][1])
-                estimations[dataset][id][1] = bbox
+                bbox = fixbbox(frames[dataset], estimations[dataset][id].bbox)
+                estimations[dataset][id].bbox = bbox
 
                 if bbox is not None:
                     # intialize tracker
                     tracker = getTracker(tracker_type)
                     try:
                         tracker.init(frames[dataset], bbox.getAsXmYmWH())
-                        estimations[dataset][id][0] = tracker
+                        estimations[dataset][id].tracker = tracker
                     except BaseException:
                         print "Error on tracker init"
                 else:
                     # invalid bbox, remove old tracker
-                    estimations[dataset][id][0] = None
+                    estimations[dataset][id].tracker = None
 
         # Show bounding boxes
         for dataset in groupDataset:
             data_detected[dataset][frame_index] = {}
             for id in ids:
-                bbox = estimations[dataset][id][1]
+                bbox = estimations[dataset][id].bbox
                 if bbox is None: continue
 
                 if id >= 0:
@@ -348,7 +361,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
             frame = np.zeros((512, 512, 3), np.uint8)
             for dataset in groupDataset:
                 for id in ids:
-                    bbox = estimations[dataset][id][1]
+                    bbox = estimations[dataset][id].bbox
                     if bbox is None: continue
 
                     px, py = to3dWorld(dataset, bbox).getAsXY()
