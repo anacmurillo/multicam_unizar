@@ -13,8 +13,6 @@ from epfl_scripts.Utilities.cv2Trackers import evaluateTracker, getTrackers
 from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getGroupedDatasets
 from epfl_scripts.multiCameraTrackerV2 import evalMultiTracker
 
-threshold_range = 100
-
 
 def evaluateMetrics(dataset, tracker):
     """
@@ -29,7 +27,7 @@ def evaluateMetrics(dataset, tracker):
 
 def evaluateMetricsGroup(groupDataset, tracker):
     n_frames, n_ids, data = evalMultiTracker(groupDataset, tracker, False)
-    for dataset in groupDataset:
+    for dataset in groupDataset[0:1]:
         gt_ids, data_groundTruth = getGroundTruth(dataset)
         evaluateData(gt_ids, data_groundTruth, n_frames, n_ids, data[dataset], 'Detection - ' + dataset + ' - ' + tracker, False)
     plt.show()
@@ -134,11 +132,17 @@ def id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label):
             for gt_index, gt_id in enumerate(gt_ids):
                 bbox_gt = getBboxFromGroundtruth(data_groundTruth[frame][gt_id])
                 bbox_tr = data_tracker[frame].get(tr_id, None)
-                if bbox_gt is not None and bbox_tr is not None:
-                    color = f_iou(bbox_gt, bbox_tr)
+
+                if bbox_gt is None and bbox_tr is None:
+                    color = [125, 125, 125]
+                elif bbox_gt is None and bbox_tr is not None:
+                    color = [175, 175, 125]
+                elif bbox_gt is not None and bbox_tr is None:
+                    color = [125, 125, 175]
                 else:
-                    color = 0.
-                grid[tr_index * gt_len + gt_index, frame] = list(blendColors((255., 255., 255.), colors[gt_index], color))
+                    color = list(blendColors((175., 175., 175.), colors[gt_index], f_iou(bbox_gt, bbox_tr)))
+
+                grid[tr_index * gt_len + gt_index, frame] = color
     plt.imshow(grid, extent=[0, grid.shape[1], 0, grid.shape[0]], aspect='auto', interpolation='none', origin='lower')
     plt.yticks(*zip(*[(i * gt_len + gt_len / 2., x) for i, x in enumerate(tr_ids)]))
     plt.gca().yaxis.set_minor_locator(pltticker.FixedLocator(range(grid.shape[0])))
