@@ -109,3 +109,17 @@ def f_multiply(matrix, p):
         for j in range(3):
             rows[i] += matrix[i][j] * p.getAsXYS()[j]
     return Point2D(rows[0], rows[1], rows[2])
+
+
+def f_average(points):
+    n = len(points)
+    if n == 0:
+        return None
+
+    ax = 0
+    ay = 0
+    for point in points:
+        px, py = point.getAsXY()
+        ax += px/n
+        ay += py/n
+    return Point2D(ax, ay)
