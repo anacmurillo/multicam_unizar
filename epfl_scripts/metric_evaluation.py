@@ -39,9 +39,29 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label
     if len(tr_ids) != len(gt_ids):
         print "[WARNING] There are", len(gt_ids), "ids on dataset, but", len(tr_ids), "returned by tracker"
 
+    # remove ids changes from tracker
+    data_tracker_polished = {}
+    for frame in range(n_frames):
+        data_tracker_polished[frame] = {}
+        for gt_id in gt_ids:
+            bbox_gt = getBboxFromGroundtruth(data_groundTruth[frame][gt_id])
+            if bbox_gt is None: continue
+
+            bestBbox = None
+            bestIou = 0
+            for tr_id in tr_ids:
+                bbox_tr = data_tracker[frame].get(tr_id, None)
+                if bbox_tr is None: continue
+
+                iou = f_iou(bbox_tr, bbox_gt)
+                if iou > bestIou:
+                    bestBbox = bbox_tr
+                    bestIou = iou
+            data_tracker_polished[frame][gt_id] = bestBbox
+
     # MOTP
     print "MOTP:"
-    motp_ids = motp(gt_ids, n_frames, data_groundTruth, data_tracker)
+    motp_ids = motp(gt_ids, n_frames, data_groundTruth, data_tracker_polished)
     motp_average = 0.
     for id in gt_ids:
         print "    ", id, "=", motp_ids[id]
@@ -50,7 +70,7 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label
 
     # MOTA
     print "MOTA"
-    mota_ids = mota(gt_ids, n_frames, data_groundTruth, data_tracker)
+    mota_ids = mota(gt_ids, n_frames, data_groundTruth, data_tracker_polished)
     mota_average = 0
     for id in gt_ids:
         mota_average += mota_ids[id]
@@ -58,7 +78,7 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label
     print "average =", mota_average / len(gt_ids)
 
     # frame legend
-    iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker, label)
+    iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker_polished, label)
 
     id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label)
 

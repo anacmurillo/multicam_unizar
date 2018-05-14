@@ -52,8 +52,13 @@ class Prediction:
 
 
 def findCenterOfGroup(predictions, id, cameras):
-    points = [to3dWorld(camera, predictions[camera][id].bbox) for camera in cameras if predictions[camera][id].bbox is not None]
-    return f_average(points), len(points)
+    points = []
+    weights = []
+    for camera in cameras:
+        if predictions[camera][id].bbox is None: continue
+        points.append(to3dWorld(camera, predictions[camera][id].bbox))
+        weights.append(-predictions[camera][id].framesLost)
+    return f_average(points, weights), len(points)
 
 
 def estimateFromPredictions(predictions, ids, detector, cameras, frame):
@@ -115,8 +120,8 @@ def estimateFromPredictions(predictions, ids, detector, cameras, frame):
     if detector is not None:
         for camera in cameras:
             for bbox in detector_unused[camera]:
+                # check if point is inside other detections in all cameras
                 point3d = to3dWorld(camera, bbox)
-
                 supported = True
                 for camera2 in cameras:
                     if camera2 == camera: continue
@@ -294,7 +299,7 @@ def fixbbox(frame, bbox):
     return bbox if bbox.isValid() else None
 
 
-@cache_function("evalMultiTracker_{0}_{1}", lambda _gd, _tt, display: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 2)
+@cache_function("evalMultiTracker_{0}_{1}", lambda _gd, _tt, display: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 3)
 def evalMultiTracker(groupDataset, tracker_type, display=True):
     detector = {}  # detector[dataset][frame][index]
 

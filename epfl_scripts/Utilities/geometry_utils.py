@@ -115,15 +115,20 @@ def f_multiply(matrix, p):
     return Point2D(rows[0], rows[1], rows[2])
 
 
-def f_average(points):
+def f_average(points, weights):
     n = len(points)
     if n == 0:
         return None
 
+    minw = min(weights)
+    weights = [x - minw + 1 for x in weights]
+    multw = 1. / sum(weights)
+    weights = [x * multw for x in weights]
+
     ax = 0
     ay = 0
-    for point in points:
+    for point, weight in zip(points, weights):
         px, py = point.getAsXY()
-        ax += px/n
-        ay += py/n
+        ax += px * weight
+        ay += py * weight
     return Point2D(ax, ay)
