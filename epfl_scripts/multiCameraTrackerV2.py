@@ -56,7 +56,7 @@ def findCenterOfGroup(predictions, id, cameras):
     return f_average(points), len(points)
 
 
-def estimateFromPredictions(predictions, ids, detector, cameras):
+def estimateFromPredictions(predictions, ids, detector, cameras, frame):
     # predictions[camera][id] = prediction class
     # for id in ids: etc
     # detector[camera] = [ (bbox), ... ]
@@ -112,10 +112,27 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
                 predictions[camera][id] = Prediction()
 
     # phase 3: assign unused detections to new targets
-    # TODO: initialize only if cameras support decision
     if detector is not None:
         for camera in cameras:
             for bbox in detector_unused[camera]:
+                point3d = to3dWorld(camera, bbox)
+
+                supported = True
+                for camera2 in cameras:
+                    if camera2 == camera: continue
+
+                    valid = False
+                    point2d = from3dWorld(camera2, point3d)
+                    if not isInsideFrame(point2d, frame): continue
+                    for bbox2 in detector[camera2]:
+                        if bbox2.contains(point2d, 10):
+                            valid = True
+                            break
+                    if not valid:
+                        supported = False
+                        break
+
+                if not supported: continue
 
                 newid = findfree(ids, False)
                 for camera2 in cameras:
@@ -236,10 +253,22 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
     return predictions, ids
 
 
-def to3dWorld(dataset, bbox):
-    calib = getCalibrationMatrix(dataset)
+def to3dWorld(camera, bbox):
+    calib = getCalibrationMatrix(camera)
     point = Point2D(bbox.xmin + bbox.width / 2., bbox.ymax)
     return f_multiply(calib, point)
+
+
+def from3dWorld(camera, point):
+    invCalib = np.linalg.inv(getCalibrationMatrix(camera))
+    return f_multiply(invCalib, point)
+
+
+def isInsideFrame(point, frame):
+    x, y = point.getAsXY()
+    height, width, colors = frame.shape
+
+    return 0 <= x < width and 0 <= y < height
 
 
 def fixbbox(frame, bbox):
@@ -329,7 +358,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
         detector_needed = frame_index % DETECTOR_FIRED == 0
 
         # merge all predictions -> estimations
-        estimations, ids = estimateFromPredictions(predictions, ids, detector[frame_index] if detector_needed else None, groupDataset)
+        estimations, ids = estimateFromPredictions(predictions, ids, detector[frame_index] if detector_needed else None, groupDataset, frames[dataset])
 
         # initialize new trackers
         for dataset in groupDataset:

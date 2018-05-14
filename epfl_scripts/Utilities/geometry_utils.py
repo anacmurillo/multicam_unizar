@@ -47,6 +47,10 @@ class Bbox:
         self.ymax = ymax
         self.height = self.ymax - self.ymin
 
+    def contains(self, point, margin=1):
+        x, y = point.getAsXY()
+        return self.xmin - margin <= x <= self.xmax + margin and self.ymin - margin <= y <= self.ymax + margin
+
 
 class Point2D:
     def __init__(self, x, y, s=1):
