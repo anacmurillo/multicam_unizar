@@ -29,10 +29,15 @@ def getDatasets():
     for path, subdirs, files in os.walk(groundtruth_folder):
         for name in files:
             datasets.append(os.path.join(os.path.relpath(path, groundtruth_folder), os.path.splitext(name)[0]))
+    datasets.sort()
     return datasets
 
 
 def getGroupedDatasets():
+    """
+    Returns list of names that can be used to extract groundtruth, grouped based on cameras from the same dataset
+    :return: [["a/b","a/c",...],["b/a","b/b",...],...]
+    """
     singles = getDatasets()
     multis = {}
     for single in singles:

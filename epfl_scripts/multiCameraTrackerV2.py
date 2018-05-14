@@ -424,7 +424,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
 
 
 if __name__ == '__main__':
-    dataset = getGroupedDatasets()[4]
+    dataset = getGroupedDatasets()[2]
     print(getGroupedDatasets())
     tracker = getTrackers()[1]  # 0 slow good, 1 fast bad
 
