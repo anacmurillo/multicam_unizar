@@ -24,6 +24,8 @@ CLOSEST_DIST = 20  # if an existing point is closer than this to a different poi
 FARTHEST_DIST = 50  # if an existing point is farther than the rest of the group, it is removed
 DETECTION_DIST = 50  # if a new point is closer than this to an existing point, it is assigned the same id
 
+FRAMES_CHANGEID = 5  # if this number of frames passed wanting to change id, it is changed
+
 
 def findfree(group, person):
     if person:
@@ -42,12 +44,16 @@ class Prediction:
         self.framesLost = framesLost
         self.trackerFound = trackerFound
 
+        self.newid = None
+        self.newidCounter = 0
+
     def reset(self):
         self.__init__()
 
 
 def findCenterOfGroup(predictions, id, cameras):
-    return f_average([to3dWorld(camera, predictions[camera][id].bbox) for camera in cameras if predictions[camera][id].bbox is not None])
+    points = [to3dWorld(camera, predictions[camera][id].bbox) for camera in cameras if predictions[camera][id].bbox is not None]
+    return f_average(points), len(points)
 
 
 def estimateFromPredictions(predictions, ids, detector, cameras):
@@ -63,7 +69,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
         # assign detector instances to predictions
         for camera in cameras:
             detector_unused[camera] = detector[camera][:]
-            for id in ids:
+            for id in [x for x in ids if x >= 0] + [x for x in ids if x < 0]:
                 prediction = predictions[camera][id]
                 if prediction.bbox is None: continue
 
@@ -90,7 +96,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
                     prediction.tracker = None
                 prediction.bbox = bestBbox
 
-    # phase 2: populate 3d info and remove if lost enough times
+    # phase 2: remove if lost enough times
     for camera in cameras:
         for id in ids:
             prediction = predictions[camera][id]
@@ -100,7 +106,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
             else:
                 framesLost = max(0, prediction.framesLost + 1)
 
-            if framesLost < FRAMES_LOST:
+            if framesLost < FRAMES_LOST * (2 if id >= 0 else 1):
                 prediction.framesLost = framesLost
             else:
                 predictions[camera][id] = Prediction()
@@ -111,85 +117,114 @@ def estimateFromPredictions(predictions, ids, detector, cameras):
         for camera in cameras:
             for bbox in detector_unused[camera]:
 
-                id = findfree(ids, False)
+                newid = findfree(ids, False)
                 for camera2 in cameras:
-                    predictions[camera2][id] = Prediction()
-                predictions[camera][id] = Prediction(bbox=bbox)
-                ids.append(id)
+                    if newid in predictions[camera2]: continue
+                    predictions[camera2][newid] = Prediction()
+                predictions[camera][newid] = Prediction(bbox=bbox)
+                if newid not in ids:
+                    ids.append(newid)
 
-    # update ids individually
-    # phase 4: change id to nearest
+    # phase 4: update ids individually
     for i, id in enumerate(ids[:]):
         for camera in cameras:
             prediction = predictions[camera][id]
             if prediction.bbox is None: continue
             point3d = to3dWorld(camera, prediction.bbox)
 
-            # phase 4.1: find distance to group center, if far enough, remove
-            # TODO change only if counter >= x
-            center = findCenterOfGroup(predictions, id, [x for x in cameras if x != camera])
-            if center is not None:
-                dist = f_euclidian(center, point3d)
-                if dist > FARTHEST_DIST:
-                    newid = findfree(ids, False)
-                    predictions[camera][newid] = prediction
-                    predictions[camera][id] = Prediction()
-                    for camera2 in cameras:
-                        if camera == camera2: continue
-                        predictions[camera2][newid] = Prediction()
-                    ids.append(newid)
-                    id = newid
+            if id >= 0:
+                # phase 4.1: find distance to group center, if far enough, remove
+                center, elements = findCenterOfGroup(predictions, id, [x for x in cameras if x != camera])
+                if center is not None:
+                    dist = f_euclidian(center, point3d)
+                    if dist > FARTHEST_DIST:
+                        if prediction.newidCounter > FRAMES_CHANGEID and prediction.newid == 'any':
+                            newid = findfree(ids, False)
+                            predictions[camera][newid] = prediction
+                            predictions[camera][id] = Prediction()
+                            prediction.newid = None
+                            prediction.newidCounter = 0
+                            prediction.framesLost = 0
+                            for camera2 in cameras:
+                                if newid in predictions[camera2]: continue
+                                predictions[camera2][newid] = Prediction()
+                            if newid not in ids:
+                                ids.append(newid)
+                            id = newid
+                        else:
+                            if prediction.newid == 'any':
+                                prediction.newidCounter += elements * 1. / len(cameras)
+                            else:
+                                prediction.newid = 'any'
+                                prediction.newidCounter = 0
+                    else:
+                        if prediction.newid == 'any':
+                            prediction.newidCounter = 0
+                            prediction.newid = None
 
-            # phase 4.2: find closest other point, if other id without point, change to that
-            # TODO change only if counter >= x
+            # phase 4.2: find closest other point, if other id change to that
             bestId = None
+            bestElements = 0
             bestDist = CLOSEST_DIST
-            for id2 in ids[0:i]:
-                center = findCenterOfGroup(predictions, id2, cameras)
+            for id2 in ids[:]:
+                if id2 == id or id2 < 0: continue
+                center, elements = findCenterOfGroup(predictions, id2, cameras)
                 if center is not None:
                     dist = f_euclidian(center, point3d)
 
                     if dist < bestDist:
                         bestId = id2
                         bestDist = dist
-            if bestId is not None and bestId != id and predictions[camera][bestId].bbox is None:
-                predictions[camera][bestId] = predictions[camera][id]
-                predictions[camera][id] = Prediction()
-                id = bestId
+                        bestElements = elements
+            if bestId is not None:
+                if prediction.newidCounter > FRAMES_CHANGEID and prediction.newid == bestId:
+                    predictions[camera][bestId] = predictions[camera][id]
+                    predictions[camera][id] = Prediction()
+                    prediction.newid = None
+                    prediction.newidCounter = 0
+                    id = bestId
+                else:
+                    if prediction.newid == bestId:
+                        prediction.newidCounter += bestElements * 1. / len(cameras)
+                    else:
+                        prediction.newid = bestId
+                        prediction.newidCounter = 0
+            else:
+                if prediction.newid >= 0:
+                    prediction.newidCounter = 0
+                    prediction.newid = None
 
     # phase 5: set target as person if tracked continuously
-    for id in ids:
+    for id in ids[:]:
         if id >= 0: continue
-        person = False
         for camera in cameras:
             if predictions[camera][id].framesLost < -FRAMES_PERSON:
-                person = True
-                break
-        if person:
-            newid = findfree(ids, True)
-            for camera in cameras:
+                newid = predictions[camera][id].newid if predictions[camera][id].newid >= 0 else findfree(ids, True)
                 predictions[camera][newid] = predictions[camera][id]
                 predictions[camera][id] = Prediction()
-            ids.remove(id)
-            ids.append(newid)
+                for camera2 in cameras:
+                    if newid in predictions[camera2]: continue
+                    predictions[camera2][newid] = Prediction()
+                if newid not in ids:
+                    ids.append(newid)
 
     # phase 6: calculate dispersion of each id and remove empty ones
     newids = []
     for id in ids:
-        maxdist = 0
+        #  maxdist = 0
         points = 0
         for i, camera in enumerate(cameras):
             if predictions[camera][id].bbox is None: continue
             points += 1
-            for camera2 in cameras[0:i]:
-                if camera == camera2: continue
-                if predictions[camera2][id].bbox is None: continue
+            # for camera2 in cameras[0:i]:
+            #     if camera == camera2: continue
+            #     if predictions[camera2][id].bbox is None: continue
+            #
+            #     dist = f_euclidian(to3dWorld(camera, predictions[camera][id].bbox), to3dWorld(camera2, predictions[camera2][id].bbox))
+            #     if dist > maxdist:
+            #         maxdist = dist
 
-                dist = f_euclidian(to3dWorld(camera, predictions[camera][id].bbox), to3dWorld(camera2, predictions[camera2][id].bbox))
-                if dist > maxdist:
-                    maxdist = dist
-
-        # if points > 1:
+        #  if points > 1:
         #    print "id=", id, " maxdist=", maxdist, " points=", points
 
         if points > 0:
@@ -230,7 +265,7 @@ def fixbbox(frame, bbox):
     return bbox if bbox.isValid() else None
 
 
-@cache_function("evalMultiTracker_{0}_{1}", lambda _gd, _tt, display: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 1)
+@cache_function("evalMultiTracker_{0}_{1}", lambda _gd, _tt, display: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 2)
 def evalMultiTracker(groupDataset, tracker_type, display=True):
     detector = {}  # detector[dataset][frame][index]
 
@@ -329,11 +364,12 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
 
                 # show bbox
                 if display:
+                    label = "{0}:{1}:{2}".format(id, estimations[dataset][id].framesLost, estimations[dataset][id].newid)
                     p1 = (int(bbox.xmin), int(bbox.ymin))
                     p2 = (int(bbox.xmax), int(bbox.ymax))
                     color = colors[id % len(colors)]
                     cv2.rectangle(frames[dataset], p1, p2, color, 2 if id >= 0 else 1, 1)
-                    cv2.putText(frames[dataset], str(id), p1, cv2.FONT_HERSHEY_SIMPLEX, 0.4 if id >= 0 else 0.2, color, 1)
+                    cv2.putText(frames[dataset], label, p1, cv2.FONT_HERSHEY_SIMPLEX, 0.4 if id >= 0 else 0.2, color, 1)
 
         if display:
             # Display result
@@ -354,6 +390,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
 
                     px, py = to3dWorld(dataset, bbox).getAsXY()
                     cv2.circle(frame, (int(px), int(py)), 1, colors[id % len(colors)], 2)
+            cv2.putText(frame, str(frame_index), (0, 512), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
             cv2.imshow(WIN_NAME + "_overview", frame)
             # /end display overview
 

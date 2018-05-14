@@ -134,13 +134,13 @@ def id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label):
                 bbox_tr = data_tracker[frame].get(tr_id, None)
 
                 if bbox_gt is None and bbox_tr is None:
-                    color = [125, 125, 125]
+                    color = [205, 205, 205]
                 elif bbox_gt is None and bbox_tr is not None:
-                    color = [175, 175, 125]
+                    color = [255, 255, 205]
                 elif bbox_gt is not None and bbox_tr is None:
-                    color = [125, 125, 175]
+                    color = [205, 205, 255]
                 else:
-                    color = list(blendColors((175., 175., 175.), colors[gt_index], f_iou(bbox_gt, bbox_tr)))
+                    color = list(blendColors((255., 255., 255.), colors[gt_index], f_iou(bbox_gt, bbox_tr)))
 
                 grid[tr_index * gt_len + gt_index, frame] = color
     plt.imshow(grid, extent=[0, grid.shape[1], 0, grid.shape[0]], aspect='auto', interpolation='none', origin='lower')
