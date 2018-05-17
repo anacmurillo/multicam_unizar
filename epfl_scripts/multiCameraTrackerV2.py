@@ -156,7 +156,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras, frame):
 
             if id >= 0:
                 # phase 4.1: find distance to group center, if far enough, remove
-                center, elements = findCenterOfGroup(predictions, id, [x for x in cameras if x != camera])
+                center, elements = findCenterOfGroup(predictions, id, cameras)
                 if center is not None:
                     dist = f_euclidian(center, point3d)
                     if dist > FARTHEST_DIST:
@@ -299,7 +299,7 @@ def fixbbox(frame, bbox):
     return bbox if bbox.isValid() else None
 
 
-@cache_function("evalMultiTracker_{0}_{1}", lambda _gd, _tt, display: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 3)
+@cache_function("evalMultiTracker_{0}_{1}", lambda _gd, _tt, display: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 4)
 def evalMultiTracker(groupDataset, tracker_type, display=True):
     detector = {}  # detector[dataset][frame][index]
 
@@ -357,7 +357,11 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                 if tracker is not None:
                     # get tracker prediction
                     ok, bbox = tracker.update(frames[dataset])
-                    predictions[dataset][id].bbox = Bbox.XmYmWH(*bbox) if ok else None
+                    if ok:
+                        predictions[dataset][id].bbox = Bbox.XmYmWH(*bbox)
+                        predictions[dataset][id].trackerFound = True
+                    else:
+                        predictions[dataset][id].trackerFound = False
 
         # detector needed
         detector_needed = frame_index % DETECTOR_FIRED == 0
@@ -401,7 +405,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                     label = "{0}:{1}:{2}".format(id, estimations[dataset][id].framesLost, estimations[dataset][id].newid)
                     p1 = (int(bbox.xmin), int(bbox.ymin))
                     p2 = (int(bbox.xmax), int(bbox.ymax))
-                    color = colors[id % len(colors)]
+                    color = colors[id % len(colors)] if id >= 0 else (255, 255, 255)
                     cv2.rectangle(frames[dataset], p1, p2, color, 2 if id >= 0 else 1, 1)
                     cv2.putText(frames[dataset], label, p1, cv2.FONT_HERSHEY_SIMPLEX, 0.4 if id >= 0 else 0.2, color, 1)
 
@@ -423,7 +427,9 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                     if bbox is None: continue
 
                     px, py = to3dWorld(dataset, bbox).getAsXY()
-                    cv2.circle(frame, (int(px), int(py)), 1, colors[id % len(colors)], 2)
+                    color = colors[id % len(colors)] if id >= 0 else (255, 255, 255)
+                    thick = 2 if id >= 0 else 1
+                    cv2.circle(frame, (int(px), int(py)), 1, color, thick)
             cv2.putText(frame, str(frame_index), (0, 512), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
             cv2.imshow(WIN_NAME + "_overview", frame)
             # /end display overview
