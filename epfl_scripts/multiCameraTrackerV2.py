@@ -61,7 +61,7 @@ def findCenterOfGroup(predictions, id, cameras):
     return f_average(points, weights), len(points)
 
 
-def estimateFromPredictions(predictions, ids, detector, cameras, frame):
+def estimateFromPredictions(predictions, ids, detector, cameras, frames):
     # predictions[camera][id] = prediction class
     # for id in ids: etc
     # detector[camera] = [ (bbox), ... ]
@@ -128,7 +128,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras, frame):
 
                     valid = False
                     point2d = from3dWorld(camera2, point3d)
-                    if not isInsideFrame(point2d, frame): continue
+                    if not isInsideFrame(point2d, frames[camera]): continue
                     for bbox2 in detector[camera2]:
                         if bbox2.contains(point2d, 10):
                             valid = True
@@ -148,6 +148,11 @@ def estimateFromPredictions(predictions, ids, detector, cameras, frame):
                     ids.append(newid)
 
     # phase 4: update ids individually
+    centers = {}
+    for id in ids:
+        if id < 0: continue
+        centers[id] = findCenterOfGroup(predictions, id, cameras)
+
     for i, id in enumerate(ids[:]):
         for camera in cameras:
             prediction = predictions[camera][id]
@@ -156,11 +161,11 @@ def estimateFromPredictions(predictions, ids, detector, cameras, frame):
 
             if id >= 0:
                 # phase 4.1: find distance to group center, if far enough, remove
-                center, elements = findCenterOfGroup(predictions, id, cameras)
+                center, elements = centers[id]
                 if center is not None:
                     dist = f_euclidian(center, point3d)
                     if dist > FARTHEST_DIST:
-                        if prediction.newidCounter > FRAMES_CHANGEID and prediction.newid == 'any':
+                        if prediction.newidCounter > FRAMES_CHANGEID and prediction.newid is not None:
                             newid = findfree(ids, False)
                             predictions[camera][newid] = prediction
                             predictions[camera][id] = Prediction()
@@ -174,13 +179,13 @@ def estimateFromPredictions(predictions, ids, detector, cameras, frame):
                                 ids.append(newid)
                             id = newid
                         else:
-                            if prediction.newid == 'any':
+                            if prediction.newid is not None:
                                 prediction.newidCounter += elements * 1. / len(cameras)
                             else:
                                 prediction.newid = 'any'
                                 prediction.newidCounter = 0
                     else:
-                        if prediction.newid == 'any':
+                        if prediction.newid is not None:
                             prediction.newidCounter = 0
                             prediction.newid = None
 
@@ -190,7 +195,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras, frame):
             bestDist = CLOSEST_DIST
             for id2 in ids[:]:
                 if id2 == id or id2 < 0: continue
-                center, elements = findCenterOfGroup(predictions, id2, cameras)
+                center, elements = centers[id2]
                 if center is not None:
                     dist = f_euclidian(center, point3d)
 
@@ -230,7 +235,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras, frame):
                 if newid not in ids:
                     ids.append(newid)
 
-    # phase 6: calculate dispersion of each id and remove empty ones
+    # internal phase 6: calculate dispersion of each id and remove empty ones
     newids = []
     for id in ids:
         #  maxdist = 0
@@ -288,18 +293,18 @@ def fixbbox(frame, bbox):
         return None
 
     if bbox.xmin < 0:
-        bbox.setXmin(0)
+        bbox.changeXmin(0)
     if bbox.ymin < 0:
-        bbox.setYmin(0)
+        bbox.changeYmin(0)
     if bbox.xmax > width:
-        bbox.setXmax(width)
+        bbox.changeXmax(width)
     if bbox.ymax > height:
-        bbox.setYmax(height)
+        bbox.changeYmax(height)
 
     return bbox if bbox.isValid() else None
 
 
-@cache_function("evalMultiTracker_{0}_{1}", lambda _gd, _tt, display: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 4)
+@cache_function("evalMultiTracker_{0}_{1}", lambda _gd, _tt, display: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 5)
 def evalMultiTracker(groupDataset, tracker_type, display=True):
     detector = {}  # detector[dataset][frame][index]
 
@@ -367,18 +372,17 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
         detector_needed = frame_index % DETECTOR_FIRED == 0
 
         # merge all predictions -> estimations
-        estimations, ids = estimateFromPredictions(predictions, ids, detector[frame_index] if detector_needed else None, groupDataset, frames[dataset])
+        estimations, ids = estimateFromPredictions(predictions, ids, detector[frame_index] if detector_needed else None, groupDataset, frames)
 
         # initialize new trackers
         for dataset in groupDataset:
             for id in ids:
-                tracker = estimations[dataset][id].tracker
-                if tracker is not None: continue
-
                 bbox = fixbbox(frames[dataset], estimations[dataset][id].bbox)
                 estimations[dataset][id].bbox = bbox
 
-                if bbox is not None:
+                tracker = estimations[dataset][id].tracker
+
+                if bbox is not None and tracker is None:
                     # intialize tracker
                     tracker = getTracker(tracker_type)
                     try:
@@ -386,9 +390,6 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                         estimations[dataset][id].tracker = tracker
                     except BaseException:
                         print "Error on tracker init"
-                else:
-                    # invalid bbox, remove old tracker
-                    estimations[dataset][id].tracker = None
 
         # Show bounding boxes
         for dataset in groupDataset:
@@ -438,9 +439,9 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                 break
         else:
             # show progress
-            if sys.stdout.isatty():
-                sys.stdout.write("\r" + str(frame_index) + " ")
-                sys.stdout.flush()
+            # if sys.stdout.isatty():
+            sys.stdout.write("\r" + str(frame_index) + " ")
+            sys.stdout.flush()
 
         # read new frames
         for dataset in groupDataset:
@@ -464,8 +465,9 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
 
 
 if __name__ == '__main__':
-    dataset = getGroupedDatasets()[2]
     print(getGroupedDatasets())
+    dataset = getGroupedDatasets()[1]
+    print(getTrackers())
     tracker = getTrackers()[1]  # 0 slow good, 1 fast bad
 
     evalMultiTracker(dataset, tracker)

@@ -92,6 +92,13 @@ def getGroundTruth(dataset):
 
 
 def getSuperDetector(dataset):
+    """
+    Return the detections from the "super-detector" parsing
+    :param dataset: the dataset to use
+    :return: dictionary with the detections where:
+        keys: each of the frames ids (from 0 inclusive to video.FRAME_COUNT exclusive)
+        values: list with each detection (can be empty) in the format [xmin, ymin, xmax, ymax]
+    """
     path = superDetector_folder + dataset + ".txt"
 
     # create data for each frame
@@ -106,6 +113,12 @@ def getSuperDetector(dataset):
 
 
 def getCalibrationMatrix(dataset):
+    """
+    Returns the calibration matrix (3x3 homography from image plane to floor plane) of the defined dataset
+    :param dataset: dataset to retrieve the matrix from
+    :return: the matrix
+    :raise ValueError: if the dataset doesn't have a calibration matrix
+    """
     if dataset in calibrationmatrixes:
         return calibrationmatrixes[dataset]
     else:
@@ -137,7 +150,7 @@ calibrationmatrixes = {
 }
 
 
-# javascript to extract from files
+# javascript to extract from files:
 # s=prompt("message","")
 # s=s.split(/\s+/g)
 # prompt("result", array([array(s.slice(0,3)),array(s.slice(3,6)),array(s.slice(6,9))]))
@@ -147,8 +160,20 @@ calibrationmatrixes = {
 # }
 
 
-def s2f2i(f):
-    return int(round(float(f)))
+def s2f2i(string):
+    """
+    Converts a string to an int parsing to a float first (otherwise "*.0" numbers make an error)
+    string -> float -> round -> int
+
+    "1.0"  ->  1
+    "5.5"  ->  6
+    "-1.0" -> -1
+    "-5.5" -> -6
+
+    :param string: string
+    :return: int
+    """
+    return int(round(float(string)))
 
 
 if __name__ == "__main__":

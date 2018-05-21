@@ -352,4 +352,4 @@ if __name__ == '__main__':
 
     # V2
 
-    evaluateMetricsGroup(getGroupedDatasets()[2], getTrackers()[1])
+    evaluateMetricsGroup(getGroupedDatasets()[1], getTrackers()[1])
