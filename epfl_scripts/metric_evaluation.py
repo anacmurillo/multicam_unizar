@@ -7,6 +7,9 @@ import matplotlib.patches as pltpatches
 import matplotlib.pyplot as plt
 import matplotlib.ticker as pltticker
 import numpy as np
+import sys
+from datetime import datetime
+from matplotlib.backends.backend_pdf import PdfPages
 
 from epfl_scripts.Utilities.colorUtility import getColors, blendColors
 from epfl_scripts.Utilities.cv2Trackers import evaluateTracker, getTrackers
@@ -25,12 +28,39 @@ def evaluateMetrics(dataset, tracker):
     evaluateData(track_ids, data_groundTruth, n_frames, track_ids, data_tracker, 'Detection - ' + dataset + ' - ' + tracker)
 
 
-def evaluateMetricsGroup(groupDataset, tracker):
+def evaluateMetricsGroup(groupDataset, tracker, toFile=None):
     n_frames, n_ids, data = evalMultiTracker(groupDataset, tracker, False)
-    for dataset in groupDataset[0:1]:
+
+    if toFile is not None:
+        sys.stdout = open(toFile + ".txt", "w")
+
+        print datetime.now()
+        print "n_frames =", n_frames, " n_ids =", n_ids
+        print
+
+        # save to file
+        with open(toFile + ".data", "w") as the_file:
+            the_file.write("dataset frame id xmin ymin xmax ymax\n")
+            for dataset in groupDataset:
+                for frame in range(n_frames):
+                    for id in data[dataset][frame]:
+                        xmin, ymin, xmax, ymax = data[dataset][frame][id]
+                        the_file.write(" ".join(map(str, [dataset, str(frame), id, xmin, ymin, xmax, ymax, "\n"])))
+
+    for dataset in groupDataset:
         gt_ids, data_groundTruth = getGroundTruth(dataset)
         evaluateData(gt_ids, data_groundTruth, n_frames, n_ids, data[dataset], 'Detection - ' + dataset + ' - ' + tracker, False)
-    plt.show()
+
+    if toFile is not None:
+        pp = PdfPages(toFile + ".pdf")
+        figs = [plt.figure(n) for n in plt.get_fignums()]
+        for fig in figs:
+            fig.savefig(pp, format='pdf')
+        pp.close()
+        sys.stdout = sys.__stdout__
+    else:
+        plt.show()
+    plt.close('all')
 
 
 def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label, block=True):
@@ -341,6 +371,20 @@ def f_euclidian(a, b):
     return math.sqrt((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2)
 
 
+#########
+
+def savecopy():
+    for groupedDatasets in getGroupedDatasets():
+        for tracker in getTrackers()[1:2]:
+            label = "savedata/" + str(datetime.now().strftime("%m-%d")) + "_" + groupedDatasets[0][0:groupedDatasets[0].index("-")].replace("/", "_") + "_" + tracker
+            print label
+            try:
+                evaluateMetricsGroup(groupedDatasets, tracker, label)
+
+            except Exception as err:
+                sys.__stdout__.write("Error on " + label + "\n" + str(err) + "\n")
+
+
 if __name__ == '__main__':
     # evaluateMetrics("Laboratory/6p-c0", 'MEANSHIFT')
     # evaluateMetrics("Laboratory/6p-c0", 'CAMSHIFT')
@@ -352,4 +396,6 @@ if __name__ == '__main__':
 
     # V2
 
-    evaluateMetricsGroup(getGroupedDatasets()[1], getTrackers()[1])
+    # evaluateMetricsGroup(getGroupedDatasets()[2], getTrackers()[1], "save")
+
+    savecopy()
