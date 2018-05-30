@@ -9,7 +9,6 @@ import matplotlib.ticker as pltticker
 import numpy as np
 import sys
 from datetime import datetime
-from matplotlib.backends.backend_pdf import PdfPages
 
 from epfl_scripts.Utilities.colorUtility import getColors, blendColors
 from epfl_scripts.Utilities.cv2Trackers import evaluateTracker, getTrackers
@@ -52,11 +51,9 @@ def evaluateMetricsGroup(groupDataset, tracker, toFile=None):
         evaluateData(gt_ids, data_groundTruth, n_frames, n_ids, data[dataset], 'Detection - ' + dataset + ' - ' + tracker, False)
 
     if toFile is not None:
-        pp = PdfPages(toFile + ".pdf")
-        figs = [plt.figure(n) for n in plt.get_fignums()]
-        for fig in figs:
-            fig.savefig(pp, format='pdf')
-        pp.close()
+        for fig_num in plt.get_fignums():
+            fig = plt.figure(fig_num)
+            fig.savefig(toFile+"_"+str(fig_num)+".png")
         sys.stdout = sys.__stdout__
     else:
         plt.show()
@@ -376,7 +373,7 @@ def f_euclidian(a, b):
 def savecopy():
     for groupedDatasets in getGroupedDatasets():
         for tracker in getTrackers()[1:2]:
-            label = "savedata/" + str(datetime.now().strftime("%m-%d")) + "_" + groupedDatasets[0][0:groupedDatasets[0].index("-")].replace("/", "_") + "_" + tracker
+            label = "savedata/" + str(datetime.now().strftime("%m-%d")) + "_" + groupedDatasets[0][0:groupedDatasets[0].index("-")].replace("/", "-") + "_" + tracker
             print label
             try:
                 evaluateMetricsGroup(groupedDatasets, tracker, label)
