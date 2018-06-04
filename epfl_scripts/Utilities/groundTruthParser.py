@@ -41,9 +41,9 @@ def getGroupedDatasets():
     singles = getDatasets()
     multis = {}
     for single in singles:
-        multi = single[0:single.rfind('-') + 1]
+        multi = single[0:single.rfind('-')]
         multis.setdefault(multi, []).append(single)
-    return multis.values()
+    return multis
 
 
 def getVideo(dataset):
@@ -177,4 +177,7 @@ def s2f2i(string):
 
 
 if __name__ == "__main__":
-    print getGroupedDatasets()
+    print "\n- ".join(["Datasets available:"] + getDatasets())
+    print
+    print "\n- ".join(["Grouped datasets available:"] + getGroupedDatasets().keys())
+    print

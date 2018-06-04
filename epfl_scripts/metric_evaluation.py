@@ -27,8 +27,8 @@ def evaluateMetrics(dataset, tracker):
     evaluateData(track_ids, data_groundTruth, n_frames, track_ids, data_tracker, 'Detection - ' + dataset + ' - ' + tracker)
 
 
-def evaluateMetricsGroup(groupDataset, tracker, toFile=None):
-    n_frames, n_ids, data = evalMultiTracker(groupDataset, tracker, False)
+def evaluateMetricsGroup(groupDataset, tracker, toFile=None, detector=5):
+    n_frames, n_ids, data = evalMultiTracker(groupDataset, tracker, False, detector)
 
     if toFile is not None:
         sys.stdout = open(toFile + ".txt", "w")
@@ -371,9 +371,9 @@ def f_euclidian(a, b):
 #########
 
 def savecopy():
-    for groupedDatasets in getGroupedDatasets():
+    for groupedDataset, groupedDatasets in getGroupedDatasets().iteritems():
         for tracker in getTrackers()[1:2]:
-            label = "savedata/" + str(datetime.now().strftime("%m-%d")) + "_" + groupedDatasets[0][0:groupedDatasets[0].index("-")].replace("/", "-") + "_" + tracker
+            label = "savedata/" + str(datetime.now().strftime("%m-%d")) + "_" + groupedDataset.replace("/", "-") + "_" + tracker
             print label
             try:
                 evaluateMetricsGroup(groupedDatasets, tracker, label)
@@ -393,6 +393,6 @@ if __name__ == '__main__':
 
     # V2
 
-    # evaluateMetricsGroup(getGroupedDatasets()[2], getTrackers()[1], "save")
+    evaluateMetricsGroup(getGroupedDatasets()['Laboratory/6p'], 'KCF', detector=10)
 
-    savecopy()
+    # savecopy()

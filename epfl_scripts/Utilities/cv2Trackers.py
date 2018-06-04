@@ -14,6 +14,7 @@ import sys
 import epfl_scripts.Utilities.cv2Visor as cv2
 from epfl_scripts.Utilities.colorUtility import getColors
 from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getVideo
+from epfl_scripts.myTracker import MyTracker
 from epfl_scripts.shiftTrackers import CAMshiftTracker, MeanShiftTracker
 
 WIN_NAME = "Tracking"
@@ -27,6 +28,7 @@ TRACKER_TYPES.append('KCF')  # good recognition, fast
 # TRACKER_TYPES.append('GOTURN')  # runtime error
 TRACKER_TYPES.append('CAMSHIFT')
 TRACKER_TYPES.append('MEANSHIFT')
+TRACKER_TYPES.append('MYTRACKER')
 
 
 def getTrackers():
@@ -73,6 +75,9 @@ def getTracker(tracker_type):
 
     if tracker_type == 'MEANSHIFT':
         return MeanShiftTracker()
+
+    if tracker_type == 'MYTRACKER':
+        return MyTracker()
 
     if int(cv2.__version__.split('.')[1]) < 3:
         tracker = cv2.Tracker_create(tracker_type)

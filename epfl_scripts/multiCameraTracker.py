@@ -4,7 +4,7 @@ import sys
 # import cv2
 import epfl_scripts.Utilities.cv2Visor as cv2
 from epfl_scripts.Utilities.colorUtility import getColors
-from epfl_scripts.Utilities.cv2Trackers import getTracker, getTrackers
+from epfl_scripts.Utilities.cv2Trackers import getTracker
 from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getVideo, getGroupedDatasets, getCalibrationMatrix
 
 WIN_NAME = "Tracking"
@@ -237,8 +237,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
 
 
 if __name__ == '__main__':
-    dataset = getGroupedDatasets()[4]
-    print(getGroupedDatasets())
-    tracker = getTrackers()[0]
+    dataset = getGroupedDatasets()['Terrace/terrace1']
+    tracker = 'BOOSTING'
 
     evalMultiTracker(dataset, tracker)

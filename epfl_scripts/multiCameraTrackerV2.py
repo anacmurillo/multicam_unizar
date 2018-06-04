@@ -5,15 +5,13 @@ import sys
 import epfl_scripts.Utilities.cv2Visor as cv2
 from epfl_scripts.Utilities.cache import cache_function
 from epfl_scripts.Utilities.colorUtility import getColors
-from epfl_scripts.Utilities.cv2Trackers import getTracker, getTrackers
+from epfl_scripts.Utilities.cv2Trackers import getTracker
 from epfl_scripts.Utilities.geometry_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox, f_average
 from epfl_scripts.Utilities.groundTruthParser import getVideo, getGroupedDatasets, getSuperDetector, getCalibrationMatrix
 
 WIN_NAME = "Tracking"
 
 cv2.configure(100)
-
-DETECTOR_FIRED = 5  # after this number of frames the detector is evaluated
 
 IOU_THRESHOLD = 0.5  # minimum iou to assign a detection to a prediction
 FRAMES_LOST = 25  # maximum number of frames until the detection is removed
@@ -98,7 +96,9 @@ def estimateFromPredictions(predictions, ids, detector, cameras, frames):
 
                 # update prediction
                 if bestBbox != prediction.bbox:
-                    prediction.tracker = None
+                    # if not 'advanced' tracker, remove
+                    if not hasattr(prediction.tracker, 'redefine'):
+                        prediction.tracker = None
                 prediction.bbox = bestBbox
 
     # phase 2: remove if lost enough times
@@ -304,8 +304,8 @@ def fixbbox(frame, bbox):
     return bbox if bbox.isValid() else None
 
 
-@cache_function("evalMultiTracker_{0}_{1}", lambda _gd, _tt, display: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 5)
-def evalMultiTracker(groupDataset, tracker_type, display=True):
+@cache_function("evalMultiTracker_{0}_{1}_{DETECTOR_FIRED}", lambda _gd, _tt, display, DETECTOR_FIRED: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 6)
+def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5):
     detector = {}  # detector[dataset][frame][index]
 
     # colors
@@ -323,6 +323,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
     # initialize videos
     videos = {}
     frames = {}
+    nframes = 0
     for dataset in groupDataset:
         video = getVideo(dataset)
         videos[dataset] = video
@@ -331,6 +332,8 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
         if not video.isOpened():
             print "Could not open video for dataset", dataset
             sys.exit()
+
+        nframes = max(nframes, int(video.get(cv2.CAP_PROP_FRAME_COUNT)))
 
         # Read first frame.
         ok, frame = video.read()
@@ -382,6 +385,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
 
                 tracker = estimations[dataset][id].tracker
 
+                # new bbox without tracker, initialize one
                 if bbox is not None and tracker is None:
                     # intialize tracker
                     tracker = getTracker(tracker_type)
@@ -390,6 +394,10 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
                         estimations[dataset][id].tracker = tracker
                     except BaseException:
                         print "Error on tracker init"
+
+                # if 'advanced' tracker with bbox, update
+                if bbox is not None and tracker is not None and hasattr(tracker, 'redefine'):
+                    tracker.redefine(bbox.getAsXmYmWH())
 
         # Show bounding boxes
         for dataset in groupDataset:
@@ -440,7 +448,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
         else:
             # show progress
             # if sys.stdout.isatty():
-            sys.stdout.write("\r" + str(frame_index) + " ")
+            sys.stdout.write("\r" + str(frame_index) + "/" + str(nframes) + "     ")
             sys.stdout.flush()
 
         # read new frames
@@ -465,9 +473,9 @@ def evalMultiTracker(groupDataset, tracker_type, display=True):
 
 
 if __name__ == '__main__':
-    print(getGroupedDatasets())
-    dataset = getGroupedDatasets()[2]
-    print(getTrackers())
-    tracker = getTrackers()[1]  # 0 slow good, 1 fast bad
+    dataset = getGroupedDatasets()['Laboratory/6p']
+    # tracker = 'BOOSTING'  # slow good
+    # tracker = 'KCF' # fast bad
+    tracker = 'MYTRACKER'  # with redefine
 
-    evalMultiTracker(dataset, tracker)
+    evalMultiTracker(dataset, tracker, True)
