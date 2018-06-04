@@ -53,7 +53,7 @@ def evaluateMetricsGroup(groupDataset, tracker, toFile=None, detector=5):
     if toFile is not None:
         for fig_num in plt.get_fignums():
             fig = plt.figure(fig_num)
-            fig.savefig(toFile+"_"+str(fig_num)+".png")
+            fig.savefig(toFile + "_" + str(fig_num) + ".png")
         sys.stdout = sys.__stdout__
     else:
         plt.show()
@@ -86,6 +86,9 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label
                     bestIou = iou
             data_tracker_polished[frame][gt_id] = bestBbox
 
+    plt.figure("graph_" + label)
+    plt.suptitle(label, fontsize=16)
+
     # MOTP
     print "MOTP:"
     motp_ids = motp(gt_ids, n_frames, data_groundTruth, data_tracker_polished)
@@ -94,6 +97,18 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label
         print "    ", id, "=", motp_ids[id]
         motp_average += motp_ids[id]
     print "average =", motp_average / len(gt_ids)
+
+    plt.subplot(2, 2, 1)
+    plt.barh(range(len(gt_ids)), [motp_ids[id] for id in gt_ids], align='center')
+    plt.axvline(x=motp_average / len(gt_ids))
+    for i, id in enumerate(gt_ids):
+        plt.text(motp_ids[id], i, '%.2f' % motp_ids[id], color='blue', va='center', fontweight='bold')
+    plt.xlim([0, 50])
+    plt.ylim([-1, len(gt_ids)])
+    plt.title("MOTP")
+    plt.xlabel('frames')
+    plt.ylabel('persons')
+    plt.yticks(*zip(*list(enumerate(gt_ids))))
 
     # MOTA
     print "MOTA"
@@ -104,9 +119,26 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label
         print "    ", id, "=", mota_ids[id]
     print "average =", mota_average / len(gt_ids)
 
-    # frame legend
+    plt.subplot(2, 2, 2)
+    plt.barh(range(len(gt_ids)), [mota_ids[i] for i in gt_ids], align='center')
+    plt.axvline(x=mota_average / len(gt_ids))
+    for i, id in enumerate(gt_ids):
+        plt.text(mota_ids[id], i, '%.2f' % mota_ids[id], color='blue', va='center', fontweight='bold')
+    plt.xlim([-0.5, 1.5])
+    plt.ylim([-1, len(gt_ids)])
+    plt.title("MOTA")
+    plt.xlabel('frames')
+    plt.ylabel('persons')
+    plt.yticks(*zip(*list(enumerate(gt_ids))))
+
+    # iou_graph
+    # plt.figure("iou_graph_" + label)
+    plt.subplot(2, 2, 3)
     iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker_polished, label)
 
+    # id_graph
+    # plt.figure("id_graph_" + label)
+    plt.subplot(2, 2, 4)
     id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label)
 
     if block:
@@ -133,8 +165,6 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label
 
 
 def iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker, label):
-    plt.figure("iou_graph_" + label)
-
     colors = ['black', 'purple', 'blue', 'red', 'green']
     labels = ['Not present', 'Tracker found ghost', 'Tracker didn\'t found', 'Totally Missed (IOU=0)', 'Perfect Found (IUO=1)']
     colormap = pltcolors.LinearSegmentedColormap.from_list('name', colors)
@@ -156,7 +186,7 @@ def iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker, label):
     plt.legend(legend, labels, bbox_to_anchor=(0.5, 1), loc='upper center', ncol=3, fontsize=10)
     plt.xlim([0, n_frames])
     plt.ylim([-0.5, len(gt_ids) + 0.5])
-    plt.title(label)
+    plt.title('best IOU')
     plt.xlabel('frames')
     plt.ylabel('persons')
     plt.yticks(*zip(*list(enumerate(gt_ids))))
@@ -166,8 +196,6 @@ def iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker, label):
 
 
 def id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label):
-    plt.figure("id_graph_" + label)
-
     tr_len = len(tr_ids)
     gt_len = len(gt_ids)
     grid = np.zeros([gt_len * tr_len, n_frames, 3], dtype=np.uint8)
@@ -193,6 +221,7 @@ def id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label):
     plt.imshow(grid, extent=[0, grid.shape[1], 0, grid.shape[0]], aspect='auto', interpolation='none', origin='lower')
     plt.yticks(*zip(*[(i * gt_len + gt_len / 2., x) for i, x in enumerate(tr_ids)]))
     plt.gca().yaxis.set_minor_locator(pltticker.FixedLocator(range(grid.shape[0])))
+    plt.title('all IOU')
     plt.xlabel('frames')
     plt.ylabel('persons (tracker/groundtruth)')
     for tr_index in range(tr_len):
