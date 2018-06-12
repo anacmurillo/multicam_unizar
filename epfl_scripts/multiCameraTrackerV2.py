@@ -469,13 +469,13 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
     for dataset in groupDataset:
         videos[dataset].release()
 
-    return frame_index, range(max(ids) + 1), data_detected
+    return frame_index, range(max(ids+[-1]) + 1), data_detected
 
 
 if __name__ == '__main__':
     dataset = getGroupedDatasets()['Laboratory/6p']
     # tracker = 'BOOSTING'  # slow good
-    # tracker = 'KCF' # fast bad
-    tracker = 'MYTRACKER'  # with redefine
+    tracker = 'KCF' # fast bad
+    #tracker = 'MYTRACKER'  # with redefine
 
     evalMultiTracker(dataset, tracker, True)

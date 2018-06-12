@@ -30,6 +30,9 @@ def evaluateMetrics(dataset, tracker):
 def evaluateMetricsGroup(groupDataset, tracker, toFile=None, detector=5):
     n_frames, n_ids, data = evalMultiTracker(groupDataset, tracker, False, detector)
 
+    motas = []
+    motps = []
+
     if toFile is not None:
         sys.stdout = open(toFile + ".txt", "w")
 
@@ -48,7 +51,11 @@ def evaluateMetricsGroup(groupDataset, tracker, toFile=None, detector=5):
 
     for dataset in groupDataset:
         gt_ids, data_groundTruth = getGroundTruth(dataset)
-        evaluateData(gt_ids, data_groundTruth, n_frames, n_ids, data[dataset], 'Detection - ' + dataset + ' - ' + tracker, False)
+        mota_ids, motp_ids = evaluateData(gt_ids, data_groundTruth, n_frames, n_ids, data[dataset], 'Detection - ' + dataset + ' - ' + tracker, False)
+        for id in gt_ids:
+            if motp_ids[id] >= 0:
+                motps.append(motp_ids[id])
+            motas.append(mota_ids[id])
 
     if toFile is not None:
         for fig_num in plt.get_fignums():
@@ -58,6 +65,8 @@ def evaluateMetricsGroup(groupDataset, tracker, toFile=None, detector=5):
     else:
         plt.show()
     plt.close('all')
+
+    return sum(motps) / len(motps), sum(motas) / len(motas)
 
 
 def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label, block=True):
@@ -95,7 +104,8 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label
     motp_average = 0.
     for id in gt_ids:
         print "    ", id, "=", motp_ids[id]
-        motp_average += motp_ids[id]
+        if motp_ids[id] >= 0:
+            motp_average += motp_ids[id]
     print "average =", motp_average / len(gt_ids)
 
     plt.subplot(2, 2, 1)
@@ -162,6 +172,8 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label
     # plt.ylim([0, 1])
     # plt.title('precision-recall - ' + dataset + ' - ' + tracker)
     # plt.show()
+
+    return motp_ids, mota_ids
 
 
 def iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker, label):
@@ -276,19 +288,19 @@ def mota(ids, frames, groundtruth, tracker):
             bbox_tr = tracker[frame].get(id, None)
 
             if bbox_gt is not None:
-                gt += 1
+                gt += 1.
 
             if bbox_gt is None and bbox_tr is None:
                 pass
             elif bbox_gt is None and bbox_tr is not None:
-                fpt += 1
+                fpt += 1.
             elif bbox_gt is not None and bbox_tr is None:
-                mt += 1
+                mt += 1.
             else:
                 if f_iou(bbox_gt, bbox_tr) >= 0.5:  # magic number, consider change with distance
                     pass
                 else:
-                    mme += 1
+                    mme += 1.
         persons[id] = 1. - (mt + fpt + mme) / gt
 
     return persons
@@ -310,8 +322,8 @@ def motp(ids, frames, groundtruth, tracker):
 
             if bbox_gt is not None and bbox_tr is not None:
                 distance += f_distance(bbox_gt, bbox_tr)  # f_iou(bbox_gt, bbox_tr)
-                matches += 1
-        persons[id] = distance / matches if matches > 0 else 0.
+                matches += 1.
+        persons[id] = distance / matches if matches > 0 else -1.
 
     return persons
 
@@ -411,6 +423,36 @@ def savecopy():
                 sys.__stdout__.write("Error on " + label + "\n" + str(err) + "\n")
 
 
+def graphGlobal():
+    with open("global.txt", "w") as global_file:
+        global_file.write("dataset frame id xmin ymin xmax ymax\n")
+        data = {}
+        for dataset_name, dataset in getGroupedDatasets().iteritems():
+            data[dataset_name] = {}
+            for detector in [1, 5, 10]:
+                label = "savedata/global_" + dataset_name.replace("/", "-") + "_" + str(detector)
+                try:
+                    data[dataset_name][detector] = {}
+
+                    motpAll, motaAll = evaluateMetricsGroup(dataset, 'KCF', toFile=label + "_all", detector=detector)
+                    data[dataset_name][detector]['motpAll'] = motpAll
+                    data[dataset_name][detector]['motaAll'] = motaAll
+
+                    motpsOne = []
+                    motasOne = []
+                    for i, dataset_element in enumerate(dataset):
+                        motpOne, motaOne = evaluateMetricsGroup([dataset_element], 'KCF', toFile=label + "_one" + str(i), detector=detector)
+                        motpsOne.append(motpOne)
+                        motasOne.append(motaOne)
+                    data[dataset_name][detector]['motpOne'] = sum(motpsOne) / len(motpsOne)
+                    data[dataset_name][detector]['motaOne'] = sum(motasOne) / len(motasOne)
+                    global_file.write("\t".join(map(str, data[dataset_name][detector].values())))
+                except Exception as e:
+                    print label, "-error:", e
+
+        print data
+
+
 if __name__ == '__main__':
     # evaluateMetrics("Laboratory/6p-c0", 'MEANSHIFT')
     # evaluateMetrics("Laboratory/6p-c0", 'CAMSHIFT')
@@ -422,6 +464,7 @@ if __name__ == '__main__':
 
     # V2
 
-    evaluateMetricsGroup(getGroupedDatasets()['Laboratory/6p'], 'KCF', detector=10)
+    # evaluateMetricsGroup(getGroupedDatasets()['Laboratory/6p'], 'KCF', detector=10)
 
     # savecopy()
+    graphGlobal()

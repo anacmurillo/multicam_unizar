@@ -43,6 +43,8 @@ def getGroupedDatasets():
     for single in singles:
         multi = single[0:single.rfind('-')]
         multis.setdefault(multi, []).append(single)
+
+    del multis['Basketball/match5']
     return multis
 
 
