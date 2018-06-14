@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as pltticker
 import numpy as np
 import sys
+import traceback
 from datetime import datetime
 
 from epfl_scripts.Utilities.colorUtility import getColors, blendColors
@@ -33,12 +34,12 @@ def evaluateMetricsGroup(groupDataset, tracker, toFile=None, detector=5):
     motas = []
     motps = []
 
+    logFile = sys.__stdout__
     if toFile is not None:
-        sys.stdout = open(toFile + ".txt", "w")
+        logFile = open(toFile + ".txt", "w")
 
-        print datetime.now()
-        print "n_frames =", n_frames, " n_ids =", n_ids
-        print
+        logFile.write(str(datetime.now()) + "\n")
+        logFile.write("n_frames =" + str(n_frames) + " n_ids =" + str(n_ids) + "\n")
 
         # save to file
         with open(toFile + ".data", "w") as the_file:
@@ -51,7 +52,12 @@ def evaluateMetricsGroup(groupDataset, tracker, toFile=None, detector=5):
 
     for dataset in groupDataset:
         gt_ids, data_groundTruth = getGroundTruth(dataset)
-        mota_ids, motp_ids = evaluateData(gt_ids, data_groundTruth, n_frames, n_ids, data[dataset], 'Detection - ' + dataset + ' - ' + tracker, False)
+        try:
+            sys.stdout = logFile
+            motp_ids, mota_ids = evaluateData(gt_ids, data_groundTruth, n_frames, n_ids, data[dataset], 'Detection - ' + dataset + ' - ' + tracker, False)
+        finally:
+            sys.stdout = sys.__stdout__
+
         for id in gt_ids:
             if motp_ids[id] >= 0:
                 motps.append(motp_ids[id])
@@ -61,12 +67,11 @@ def evaluateMetricsGroup(groupDataset, tracker, toFile=None, detector=5):
         for fig_num in plt.get_fignums():
             fig = plt.figure(fig_num)
             fig.savefig(toFile + "_" + str(fig_num) + ".png")
-        sys.stdout = sys.__stdout__
     else:
         plt.show()
     plt.close('all')
 
-    return sum(motps) / len(motps), sum(motas) / len(motas)
+    return average(motps), average(motas)
 
 
 def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label, block=True):
@@ -101,18 +106,22 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label
     # MOTP
     print "MOTP:"
     motp_ids = motp(gt_ids, n_frames, data_groundTruth, data_tracker_polished)
-    motp_average = 0.
+    motp_valid = []
+
     for id in gt_ids:
         print "    ", id, "=", motp_ids[id]
         if motp_ids[id] >= 0:
-            motp_average += motp_ids[id]
-    print "average =", motp_average / len(gt_ids)
+            motp_valid.append(motp_ids[id])
+    motp_average = average(motp_valid)
+    print "average =", motp_average
+
+    motp_fix = [motp_ids[id] if motp_ids[id]>=0 else -1. for id in gt_ids]
 
     plt.subplot(2, 2, 1)
-    plt.barh(range(len(gt_ids)), [motp_ids[id] for id in gt_ids], align='center')
-    plt.axvline(x=motp_average / len(gt_ids))
+    plt.barh(range(len(gt_ids)), motp_fix, align='center')
+    plt.axvline(x=motp_average)
     for i, id in enumerate(gt_ids):
-        plt.text(motp_ids[id], i, '%.2f' % motp_ids[id], color='blue', va='center', fontweight='bold')
+        plt.text(motp_fix[id], i, '%.2f' % (motp_fix[id] or -1), color='blue', va='center', fontweight='bold')
     plt.xlim([0, 50])
     plt.ylim([-1, len(gt_ids)])
     plt.title("MOTP")
@@ -123,15 +132,14 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label
     # MOTA
     print "MOTA"
     mota_ids = mota(gt_ids, n_frames, data_groundTruth, data_tracker_polished)
-    mota_average = 0
     for id in gt_ids:
-        mota_average += mota_ids[id]
         print "    ", id, "=", mota_ids[id]
-    print "average =", mota_average / len(gt_ids)
+    mota_average = average(mota_ids)
+    print "average =", mota_average
 
     plt.subplot(2, 2, 2)
     plt.barh(range(len(gt_ids)), [mota_ids[i] for i in gt_ids], align='center')
-    plt.axvline(x=mota_average / len(gt_ids))
+    plt.axvline(x=mota_average)
     for i, id in enumerate(gt_ids):
         plt.text(mota_ids[id], i, '%.2f' % mota_ids[id], color='blue', va='center', fontweight='bold')
     plt.xlim([-0.5, 1.5])
@@ -274,7 +282,7 @@ def precision_recall(id, frames, groundtruth, tracker, threshold):
 
 def mota(ids, frames, groundtruth, tracker):
     """
-    Returns the mota evaluation of each person
+    Returns the mota evaluation of each person, more is better
     """
     persons = {}
 
@@ -309,7 +317,7 @@ def mota(ids, frames, groundtruth, tracker):
 # using different evaluation
 def motp(ids, frames, groundtruth, tracker):
     """
-    Returns the motp evaluation for each person
+    Returns the motp evaluation for each person, average dist (less is better)
     """
     persons = {}
 
@@ -322,8 +330,9 @@ def motp(ids, frames, groundtruth, tracker):
 
             if bbox_gt is not None and bbox_tr is not None:
                 distance += f_distance(bbox_gt, bbox_tr)  # f_iou(bbox_gt, bbox_tr)
+                # distance += f_iou(bbox_gt, bbox_tr)
                 matches += 1.
-        persons[id] = distance / matches if matches > 0 else -1.
+        persons[id] = distance / matches if matches > 0 else None
 
     return persons
 
@@ -390,7 +399,7 @@ def f_area(bbox):
 
 def f_distance(boxA, boxB):
     """
-    return eucliedean distance bewteen center of bboxes
+    return euclidean distance between center of bboxes
     """
     return f_euclidian(f_center(boxA), f_center(boxB))
 
@@ -399,7 +408,7 @@ def f_center(box):
     """
     Returns the center of the bbox
     """
-    return (box[2] + box[0]) / 2, (box[3] + box[1]) / 2
+    return (box[2] + box[0]) / 2., (box[3] + box[1]) / 2.
 
 
 def f_euclidian(a, b):
@@ -407,6 +416,10 @@ def f_euclidian(a, b):
     returns the euclidian distance bewteen the two points
     """
     return math.sqrt((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2)
+
+
+def average(list, default=None):
+    return sum(list)/len(list) if len(list) > 0 else default
 
 
 #########
@@ -425,12 +438,16 @@ def savecopy():
 
 def graphGlobal():
     with open("global.txt", "w") as global_file:
-        global_file.write("dataset frame id xmin ymin xmax ymax\n")
+        global_file.write("dataset\tdetector\tvalues\n")
         data = {}
         for dataset_name, dataset in getGroupedDatasets().iteritems():
             data[dataset_name] = {}
             for detector in [1, 5, 10]:
+
                 label = "savedata/global_" + dataset_name.replace("/", "-") + "_" + str(detector)
+
+                print label
+
                 try:
                     data[dataset_name][detector] = {}
 
@@ -442,13 +459,21 @@ def graphGlobal():
                     motasOne = []
                     for i, dataset_element in enumerate(dataset):
                         motpOne, motaOne = evaluateMetricsGroup([dataset_element], 'KCF', toFile=label + "_one" + str(i), detector=detector)
-                        motpsOne.append(motpOne)
+                        if motpOne >= 0:
+                            motpsOne.append(motpOne)
                         motasOne.append(motaOne)
-                    data[dataset_name][detector]['motpOne'] = sum(motpsOne) / len(motpsOne)
-                    data[dataset_name][detector]['motaOne'] = sum(motasOne) / len(motasOne)
+                    data[dataset_name][detector]['motpOne'] = average(motpsOne)
+                    data[dataset_name][detector]['motaOne'] = average(motasOne)
+                    global_file.write(dataset_name)
+                    global_file.write("\t")
+                    global_file.write(str(detector))
+                    global_file.write("\t")
                     global_file.write("\t".join(map(str, data[dataset_name][detector].values())))
-                except Exception as e:
-                    print label, "-error:", e
+                    global_file.write("\t")
+                    global_file.write("\t".join(map(str, data[dataset_name][detector].keys())))
+                    global_file.write("\n")
+                except Exception:
+                    print label, "-error:", traceback.print_exc()
 
         print data
 
@@ -464,7 +489,7 @@ if __name__ == '__main__':
 
     # V2
 
-    # evaluateMetricsGroup(getGroupedDatasets()['Laboratory/6p'], 'KCF', detector=10)
+    #evaluateMetricsGroup(getGroupedDatasets()['Campus/campus7'][1:2], 'KCF', detector=1)
 
     # savecopy()
     graphGlobal()

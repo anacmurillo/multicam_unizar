@@ -25,14 +25,11 @@ DETECTION_DIST = 50  # if a new point is closer than this to an existing point, 
 FRAMES_CHANGEID = 5  # if this number of frames passed wanting to change id, it is changed
 
 
-def findfree(group, person):
-    if person:
-        return max(group + [-1]) + 1
-    else:
-        free = -1
-        while free in group:
-            free -= 1
-        return free
+def getUnusedId(group):
+    free = -1
+    while free in group:
+        free -= 1
+    return free
 
 
 class Prediction:
@@ -59,7 +56,7 @@ def findCenterOfGroup(predictions, id, cameras):
     return f_average(points, weights), len(points)
 
 
-def estimateFromPredictions(predictions, ids, detector, cameras, frames):
+def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
     # predictions[camera][id] = prediction class
     # for id in ids: etc
     # detector[camera] = [ (bbox), ... ]
@@ -139,7 +136,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras, frames):
 
                 if not supported: continue
 
-                newid = findfree(ids, False)
+                newid = getUnusedId(ids)
                 for camera2 in cameras:
                     if newid in predictions[camera2]: continue
                     predictions[camera2][newid] = Prediction()
@@ -166,7 +163,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras, frames):
                     dist = f_euclidian(center, point3d)
                     if dist > FARTHEST_DIST:
                         if prediction.newidCounter > FRAMES_CHANGEID and prediction.newid is not None:
-                            newid = findfree(ids, False)
+                            newid = getUnusedId(ids)
                             predictions[camera][newid] = prediction
                             predictions[camera][id] = Prediction()
                             prediction.newid = None
@@ -194,7 +191,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras, frames):
             bestElements = 0
             bestDist = CLOSEST_DIST
             for id2 in ids[:]:
-                if id2 == id or id2 < 0: continue
+                if id2 < 0: continue
                 center, elements = centers[id2]
                 if center is not None:
                     dist = f_euclidian(center, point3d)
@@ -203,7 +200,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras, frames):
                         bestId = id2
                         bestDist = dist
                         bestElements = elements
-            if bestId is not None:
+            if bestId is not None and bestId != id:
                 if prediction.newidCounter > FRAMES_CHANGEID and prediction.newid == bestId:
                     predictions[camera][bestId] = predictions[camera][id]
                     predictions[camera][id] = Prediction()
@@ -226,7 +223,11 @@ def estimateFromPredictions(predictions, ids, detector, cameras, frames):
         if id >= 0: continue
         for camera in cameras:
             if predictions[camera][id].framesLost < -FRAMES_PERSON:
-                newid = predictions[camera][id].newid if predictions[camera][id].newid >= 0 else findfree(ids, True)
+                if predictions[camera][id].newid >= 0:
+                    newid = predictions[camera][id].newid
+                else:
+                    newid = maxid+1
+                    maxid = newid
                 predictions[camera][newid] = predictions[camera][id]
                 predictions[camera][id] = Prediction()
                 for camera2 in cameras:
@@ -260,7 +261,7 @@ def estimateFromPredictions(predictions, ids, detector, cameras, frames):
 
     # TODO: average point, move rectangles
 
-    return predictions, ids
+    return predictions, ids, maxid
 
 
 def to3dWorld(camera, bbox):
@@ -304,7 +305,7 @@ def fixbbox(frame, bbox):
     return bbox if bbox.isValid() else None
 
 
-@cache_function("evalMultiTracker_{0}_{1}_{DETECTOR_FIRED}", lambda _gd, _tt, display, DETECTOR_FIRED: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 6)
+@cache_function("evalMultiTracker_{0}_{1}_{DETECTOR_FIRED}", lambda _gd, _tt, display, DETECTOR_FIRED: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 7)
 def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5):
     detector = {}  # detector[dataset][frame][index]
 
@@ -356,6 +357,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
     # loop
     frame_index = 0
     allOk = True
+    maxid = -1
     while allOk:
 
         # parse trackers
@@ -364,7 +366,10 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
                 tracker = predictions[dataset][id].tracker
                 if tracker is not None:
                     # get tracker prediction
-                    ok, bbox = tracker.update(frames[dataset])
+                    try:
+                        ok, bbox = tracker.update(frames[dataset])
+                    except Exception:
+                        ok = False
                     if ok:
                         predictions[dataset][id].bbox = Bbox.XmYmWH(*bbox)
                         predictions[dataset][id].trackerFound = True
@@ -375,7 +380,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
         detector_needed = frame_index % DETECTOR_FIRED == 0
 
         # merge all predictions -> estimations
-        estimations, ids = estimateFromPredictions(predictions, ids, detector[frame_index] if detector_needed else None, groupDataset, frames)
+        estimations, ids, maxid = estimateFromPredictions(predictions, ids, maxid, detector[frame_index] if detector_needed else None, groupDataset, frames)
 
         # initialize new trackers
         for dataset in groupDataset:
@@ -469,13 +474,19 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
     for dataset in groupDataset:
         videos[dataset].release()
 
-    return frame_index, range(max(ids+[-1]) + 1), data_detected
+    return frame_index, range(maxid + 1), data_detected
 
 
 if __name__ == '__main__':
-    dataset = getGroupedDatasets()['Laboratory/6p']
+    # dataset = getGroupedDatasets()['Terrace/terrace1']
+    # dataset = getGroupedDatasets()['Passageway/passageway1']
+    dataset = getGroupedDatasets()['Campus/campus7'][1:2]
+
     # tracker = 'BOOSTING'  # slow good
     tracker = 'KCF' # fast bad
-    #tracker = 'MYTRACKER'  # with redefine
+    # tracker = 'MYTRACKER'  # with redefine
 
-    evalMultiTracker(dataset, tracker, True)
+    detector_fired = 1
+
+    print dataset, tracker, detector_fired
+    evalMultiTracker(dataset, tracker, True, detector_fired)
