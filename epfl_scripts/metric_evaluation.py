@@ -71,7 +71,7 @@ def evaluateMetricsGroup(groupDataset, tracker, toFile=None, detector=5):
         plt.show()
     plt.close('all')
 
-    return average(motps), average(motas)
+    return average(motps), average(motas), len(n_ids)
 
 
 def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label, block=True):
@@ -451,19 +451,23 @@ def graphGlobal():
                 try:
                     data[dataset_name][detector] = {}
 
-                    motpAll, motaAll = evaluateMetricsGroup(dataset, 'KCF', toFile=label + "_all", detector=detector)
+                    motpAll, motaAll, numIdsAll = evaluateMetricsGroup(dataset, 'KCF', toFile=label + "_all", detector=detector)
                     data[dataset_name][detector]['motpAll'] = motpAll
                     data[dataset_name][detector]['motaAll'] = motaAll
+                    data[dataset_name][detector]['numIdsAll'] = numIdsAll
 
                     motpsOne = []
                     motasOne = []
+                    numsIdsOne = []
                     for i, dataset_element in enumerate(dataset):
-                        motpOne, motaOne = evaluateMetricsGroup([dataset_element], 'KCF', toFile=label + "_one" + str(i), detector=detector)
+                        motpOne, motaOne, numIdsOne = evaluateMetricsGroup([dataset_element], 'KCF', toFile=label + "_one" + str(i), detector=detector)
                         if motpOne >= 0:
                             motpsOne.append(motpOne)
                         motasOne.append(motaOne)
+                        numsIdsOne.append(numIdsOne)
                     data[dataset_name][detector]['motpOne'] = average(motpsOne)
                     data[dataset_name][detector]['motaOne'] = average(motasOne)
+                    data[dataset_name][detector]['numIdsOne'] = average(numsIdsOne)
                     global_file.write(dataset_name)
                     global_file.write("\t")
                     global_file.write(str(detector))
@@ -489,7 +493,7 @@ if __name__ == '__main__':
 
     # V2
 
-    #evaluateMetricsGroup(getGroupedDatasets()['Campus/campus7'][1:2], 'KCF', detector=1)
+    # evaluateMetricsGroup(getGroupedDatasets()['Campus/campus7'][1:2], 'KCF', detector=1)
 
     # savecopy()
     graphGlobal()
