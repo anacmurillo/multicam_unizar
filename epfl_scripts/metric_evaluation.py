@@ -59,8 +59,7 @@ def evaluateMetricsGroup(groupDataset, tracker, toFile=None, detector=5):
             sys.stdout = sys.__stdout__
 
         for id in gt_ids:
-            if motp_ids[id] >= 0:
-                motps.append(motp_ids[id])
+            motps.append(motp_ids[id])
             motas.append(mota_ids[id])
 
     if toFile is not None:
@@ -71,14 +70,44 @@ def evaluateMetricsGroup(groupDataset, tracker, toFile=None, detector=5):
         plt.show()
     plt.close('all')
 
-    return average(motps), average(motas), len(n_ids)
+    return {'motp': average(motps), 'mota': average(motas), 'n_ids': len(n_ids)}
 
 
-def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label, block=True):
+def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids_original, data_tracker, label, block=True):
+    tr_ids = tr_ids_original[:]
+
+    # remove 'empty' persons from tracker
+    durations = []
+    for tr_id in tr_ids[:]:
+        valid = False
+        for gt_id in gt_ids:
+            seen = 0
+            for frame in range(n_frames):
+                bbox_gt = getBboxFromGroundtruth(data_groundTruth[frame][gt_id])
+                bbox_tr = data_tracker[frame].get(tr_id, None)
+                if bbox_gt is None:
+                    continue
+
+                if bbox_tr is not None and f_iou(bbox_tr, bbox_gt) > 0.5:
+                    seen += 1
+                else:
+                    if seen != 0:
+                        durations.append(seen)
+                    seen = 0
+
+                if seen > 10:
+                    valid = True
+        if not valid:
+            tr_ids.remove(tr_id)
+            print "removed"
+    plt.figure("graph_hist_" + label)
+    plt.hist(durations, 100)
+    print average(durations)
+
     print
     print "Metrics of:", label
     if len(tr_ids) != len(gt_ids):
-        print "[WARNING] There are", len(gt_ids), "ids on dataset, but", len(tr_ids), "returned by tracker"
+        print "[INFO] There are", len(gt_ids), "ids on dataset, but", len(tr_ids), "returned by tracker"
 
     # remove ids changes from tracker
     data_tracker_polished = {}
@@ -115,7 +144,7 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label
     motp_average = average(motp_valid)
     print "average =", motp_average
 
-    motp_fix = [motp_ids[id] if motp_ids[id]>=0 else -1. for id in gt_ids]
+    motp_fix = [motp_ids[id] if motp_ids[id] >= 0 else -1. for id in gt_ids]
 
     plt.subplot(2, 2, 1)
     plt.barh(range(len(gt_ids)), motp_fix, align='center')
@@ -149,12 +178,12 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label
     plt.ylabel('persons')
     plt.yticks(*zip(*list(enumerate(gt_ids))))
 
-    # iou_graph
+    # IOU_graph
     # plt.figure("iou_graph_" + label)
     plt.subplot(2, 2, 3)
     iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker_polished, label)
 
-    # id_graph
+    # ID_graph
     # plt.figure("id_graph_" + label)
     plt.subplot(2, 2, 4)
     id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label)
@@ -419,7 +448,8 @@ def f_euclidian(a, b):
 
 
 def average(list, default=None):
-    return sum(list)/len(list) if len(list) > 0 else default
+    filterlist = [i for i in list if i is not None]
+    return float(sum(filterlist)) / len(filterlist) if len(filterlist) > 0 else default
 
 
 #########
@@ -436,13 +466,13 @@ def savecopy():
                 sys.__stdout__.write("Error on " + label + "\n" + str(err) + "\n")
 
 
-def graphGlobal():
-    with open("global.txt", "w") as global_file:
-        global_file.write("dataset\tdetector\tvalues\n")
+def graphGlobal(detector_values):
+    with open("savedata/global.txt", "w") as global_file:
+        global_file.write("dataset\tdetector\tvalues...\n")
         data = {}
         for dataset_name, dataset in getGroupedDatasets().iteritems():
             data[dataset_name] = {}
-            for detector in [1, 5, 10]:
+            for detector in detector_values:
 
                 label = "savedata/global_" + dataset_name.replace("/", "-") + "_" + str(detector)
 
@@ -451,23 +481,18 @@ def graphGlobal():
                 try:
                     data[dataset_name][detector] = {}
 
-                    motpAll, motaAll, numIdsAll = evaluateMetricsGroup(dataset, 'KCF', toFile=label + "_all", detector=detector)
-                    data[dataset_name][detector]['motpAll'] = motpAll
-                    data[dataset_name][detector]['motaAll'] = motaAll
-                    data[dataset_name][detector]['numIdsAll'] = numIdsAll
+                    metricsOneList = {}
+                    metricsAll = evaluateMetricsGroup(dataset, 'KCF', toFile=label + "_all", detector=detector)
+                    for metric in metricsAll:
+                        data[dataset_name][detector][metric+'All'] = metricsAll[metric]
+                        metricsOneList[metric] = []
 
-                    motpsOne = []
-                    motasOne = []
-                    numsIdsOne = []
                     for i, dataset_element in enumerate(dataset):
-                        motpOne, motaOne, numIdsOne = evaluateMetricsGroup([dataset_element], 'KCF', toFile=label + "_one" + str(i), detector=detector)
-                        if motpOne >= 0:
-                            motpsOne.append(motpOne)
-                        motasOne.append(motaOne)
-                        numsIdsOne.append(numIdsOne)
-                    data[dataset_name][detector]['motpOne'] = average(motpsOne)
-                    data[dataset_name][detector]['motaOne'] = average(motasOne)
-                    data[dataset_name][detector]['numIdsOne'] = average(numsIdsOne)
+                        metricsOne = evaluateMetricsGroup([dataset_element], 'KCF', toFile=label + "_one" + str(i), detector=detector)
+                        for metric in metricsOne:
+                            metricsOneList[metric].append(metricsOne[metric])
+                    for metric in metricsOneList:
+                        data[dataset_name][detector][metric+'One'] = average(metricsOneList[metric])
                     global_file.write(dataset_name)
                     global_file.write("\t")
                     global_file.write(str(detector))
@@ -493,7 +518,9 @@ if __name__ == '__main__':
 
     # V2
 
-    # evaluateMetricsGroup(getGroupedDatasets()['Campus/campus7'][1:2], 'KCF', detector=1)
+    #evaluateMetricsGroup(getGroupedDatasets()['Laboratory/6p'], 'KCF', detector=5)
+    # evaluateMetricsGroup(getGroupedDatasets()['Passageway/passageway1'][0:1], 'KCF', detector=5)
 
     # savecopy()
-    graphGlobal()
+    # graphGlobal([1, 5, 10])
+    graphGlobal([5])

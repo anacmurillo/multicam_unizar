@@ -480,7 +480,8 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
 if __name__ == '__main__':
     # dataset = getGroupedDatasets()['Terrace/terrace1']
     # dataset = getGroupedDatasets()['Passageway/passageway1']
-    dataset = getGroupedDatasets()['Campus/campus7'][1:2]
+    # dataset = getGroupedDatasets()['Laboratory/6p']
+    dataset = getGroupedDatasets()['Campus/campus7']
 
     # tracker = 'BOOSTING'  # slow good
     tracker = 'KCF' # fast bad
