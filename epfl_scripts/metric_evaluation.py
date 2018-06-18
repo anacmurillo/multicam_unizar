@@ -135,13 +135,14 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids_original, data_track
 
     # average duration for each person
     durations = {}
+    durations_list = []
     for gt_id in gt_ids:
-        durations_local = []
-        for tr_id in gt_ids:
+        durations_max = 0
+        for tr_id in tr_ids:
             seen = 0
             for frame in range(n_frames):
                 bbox_gt = getBboxFromGroundtruth(data_groundTruth[frame][gt_id])
-                bbox_tr = data_tracker_polished[frame].get(tr_id, None)
+                bbox_tr = data_tracker[frame].get(tr_id, None)
                 if bbox_gt is None:
                     continue
 
@@ -149,13 +150,19 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids_original, data_track
                     seen += 1
                 else:
                     if seen != 0:
-                        durations_local.append(seen)
+                        if seen > durations_max:
+                            durations_max = seen
+                        durations_list.append(seen)
                     seen = 0
             if seen != 0:
-                durations_local.append(seen)
-        durations[gt_id] = average(durations_local, 0)
-        #plt.hist(durations_local)
-        #plt.show()
+                if seen > durations_max:
+                    durations_max = seen
+                durations_list.append(seen)
+        durations[gt_id] = durations_max
+
+    plt.figure("graph_dur_" + label)
+    plt.suptitle(label, fontsize=16)
+    plt.hist(durations_list, bins=range(0, 500, 50))
 
     plt.figure("graph_" + label)
     plt.suptitle(label, fontsize=16)
@@ -174,17 +181,17 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids_original, data_track
 
     motp_fix = [motp_ids[id] if motp_ids[id] >= 0 else -1. for id in gt_ids]
 
-    plt.subplot(2, 2, 1)
-    plt.barh(range(len(gt_ids)), motp_fix, align='center')
-    plt.axvline(x=motp_average)
-    for i, id in enumerate(gt_ids):
-        plt.text(motp_fix[id], i, '%.2f' % (motp_fix[id] or -1), color='blue', va='center', fontweight='bold')
-    plt.xlim([0, 50])
-    plt.ylim([-1, len(gt_ids)])
-    plt.title("MOTP")
-    plt.xlabel('frames')
-    plt.ylabel('persons')
-    plt.yticks(*zip(*list(enumerate(gt_ids))))
+    ##plt.subplot(2, 2, 1)
+    ##plt.barh(range(len(gt_ids)), motp_fix, align='center')
+    ##plt.axvline(x=motp_average)
+    ##for i, id in enumerate(gt_ids):
+    ##    plt.text(motp_fix[id], i, '%.2f' % (motp_fix[id] or -1), color='blue', va='center', fontweight='bold')
+    ##plt.xlim([0, 50])
+    ##plt.ylim([-1, len(gt_ids)])
+    ##plt.title("MOTP")
+    ##plt.xlabel('frames')
+    ##plt.ylabel('persons')
+    ##plt.yticks(*zip(*list(enumerate(gt_ids))))
 
     # MOTA
     print "MOTA"
@@ -194,28 +201,28 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids_original, data_track
     mota_average = average(mota_ids)
     print "average =", mota_average
 
-    plt.subplot(2, 2, 2)
-    plt.barh(range(len(gt_ids)), [mota_ids[i] for i in gt_ids], align='center')
-    plt.axvline(x=mota_average)
-    for i, id in enumerate(gt_ids):
-        plt.text(mota_ids[id], i, '%.2f' % mota_ids[id], color='blue', va='center', fontweight='bold')
-    plt.xlim([-0.5, 1.5])
-    plt.ylim([-1, len(gt_ids)])
-    plt.title("MOTA")
-    plt.xlabel('frames')
-    plt.ylabel('persons')
-    plt.yticks(*zip(*list(enumerate(gt_ids))))
+    # plt.subplot(2, 2, 2)
+    # plt.barh(range(len(gt_ids)), [mota_ids[i] for i in gt_ids], align='center')
+    # plt.axvline(x=mota_average)
+    # for i, id in enumerate(gt_ids):
+    #    plt.text(mota_ids[id], i, '%.2f' % mota_ids[id], color='blue', va='center', fontweight='bold')
+    # plt.xlim([-0.5, 1.5])
+    # plt.ylim([-1, len(gt_ids)])
+    # plt.title("MOTA")
+    # plt.xlabel('frames')
+    # plt.ylabel('persons')
+    # plt.yticks(*zip(*list(enumerate(gt_ids))))
 
     # IOU_graph
     # plt.figure("iou_graph_" + label)
-    plt.subplot(2, 2, 3)
+    # plt.subplot(2, 2, 3)
     iou_vectors = iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker_polished, label)
 
     # ID_graph
     # plt.figure("id_graph_" + label)
-    plt.subplot(2, 2, 4)
-    id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label)
-
+    # plt.subplot(2, 2, 4)
+    # id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label)
+    #
     if block:
         plt.show()
 
@@ -520,7 +527,7 @@ def graphGlobal(detector_values):
                     iousOne = {}
                     metricsAll, iousAll = evaluateMetricsGroup(datasets, 'KCF', toFile=label + "_all", detector=detector)
                     for metric in metricsAll:
-                        data[datasets_prefix][detector][metric+'All'] = metricsAll[metric]
+                        data[datasets_prefix][detector][metric + 'All'] = metricsAll[metric]
                         metricsOneList[metric] = []
 
                     for i, dataset in enumerate(datasets):
@@ -530,7 +537,7 @@ def graphGlobal(detector_values):
                         iousOne[dataset] = iouOne[dataset]
 
                     for metric in metricsOneList:
-                        data[datasets_prefix][detector][metric+'One'] = average(metricsOneList[metric])
+                        data[datasets_prefix][detector][metric + 'One'] = average(metricsOneList[metric])
 
                     diffs = []
                     for dataset in datasets:
