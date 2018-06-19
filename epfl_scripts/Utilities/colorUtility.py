@@ -31,4 +31,4 @@ def blendColors(a, b, t):
     :return: color
     """
     # return (math.sqrt((1 - t) * x**2 + t * y**2) for x, y in zip(a, b))
-    return ((1 - t) * x + t * y for x, y in zip(a, b))
+    return tuple((1 - t) * x + t * y for x, y in zip(a, b))
