@@ -7,7 +7,7 @@ Internal debugging utility, no real usage.
 import cv2  # read video file
 
 from epfl_scripts.Utilities.colorUtility import getColors
-from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getDatasets
+from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getDatasets, getVideo
 
 # settings
 video_folder = "/home/jaguilar/Abel/epfl/dataset/CVLAB/"
@@ -31,7 +31,7 @@ def evalFile(filename):
 
     # read video
     images = []
-    vidcap = cv2.VideoCapture(video_folder + filename + ".avi")
+    vidcap = getVideo(filename)#cv2.VideoCapture(video_folder + filename + ".avi")
     success, image = vidcap.read()
     frame = 0
     while success:
@@ -43,6 +43,7 @@ def evalFile(filename):
         cv2.putText(image, str(frame), (0, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (1, 1, 1), 1)
         images.append(image)
         success, image = vidcap.read()
+        print frame
         frame += 1
 
     frame = 0
@@ -53,13 +54,13 @@ def evalFile(filename):
         k = cv2.waitKey(0) & 0xff
         if k == 27:
             break
-        elif k == 83:
+        elif k == 83 or k == 100:
             frame += 1
-        elif k == 81:
+        elif k == 81 or k == 97:
             frame -= 1
-        elif k == 82:
+        elif k == 82 or k == 119:
             frame += 10
-        elif k == 84:
+        elif k == 84 or k == 115:
             frame -= 10
         elif k == 80:
             frame = 0
@@ -85,5 +86,6 @@ def runAll():
 
 if __name__ == '__main__':
     # runAll()
-    evalFile("Laboratory/6p-c3")
+    # evalFile("Laboratory/6p-c3")
+    evalFile("Campus/campus7-c0")
     # evaluateTracker("Basketball/match5-c0")

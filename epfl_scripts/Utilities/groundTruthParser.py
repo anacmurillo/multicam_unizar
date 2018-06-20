@@ -16,7 +16,7 @@ import os  # file operations
 import cv2  # opencv
 
 groundtruth_folder = "/home/jaguilar/Abel/epfl/dataset/merayxu-multiview-object-tracking-dataset-d2990e227c57/EPFL/"
-video_folder = "/home/jaguilar/Abel/epfl/dataset/CVLAB/"
+video_folder = "/home/jaguilar/Abel/epfl/dataset/frames/"
 superDetector_folder = "/home/jaguilar/Abel/epfl/dataset/superDetector/"
 
 
@@ -54,7 +54,7 @@ def getVideo(dataset):
     :param dataset: the dataset as returned by getDatasets()
     :return: cv2.VideoCapture
     """
-    return cv2.VideoCapture(video_folder + dataset + ".avi")
+    return cv2.VideoCapture(video_folder + dataset + "/%03d.bmp")
 
 
 def getGroundTruth(dataset):

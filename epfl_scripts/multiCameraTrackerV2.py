@@ -305,7 +305,7 @@ def fixbbox(frame, bbox):
     return bbox if bbox.isValid() else None
 
 
-@cache_function("evalMultiTracker_{0}_{1}_{DETECTOR_FIRED}", lambda _gd, _tt, display, DETECTOR_FIRED: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 7)
+@cache_function("evalMultiTracker_{0}_{1}_{DETECTOR_FIRED}", lambda _gd, _tt, display, DETECTOR_FIRED: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 8)
 def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5):
     detector = {}  # detector[dataset][frame][index]
 

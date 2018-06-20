@@ -91,5 +91,5 @@ def showAll():
 
 if __name__ == '__main__':
     # showAll()
-    showOne("Laboratory/6p-c3")
-    # showOne("Campus/campus7-c1")
+    # showOne("Laboratory/6p-c3")
+    showOne("Campus/campus7-c1")

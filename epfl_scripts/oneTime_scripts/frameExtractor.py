@@ -33,11 +33,22 @@ def extract(dataset):
     return index
 
 
+def extract_fix(dataset):
+    video = "/home/jaguilar/Abel/epfl/dataset/CVLAB/" + dataset + ".avi"
+
+    frames = "/home/jaguilar/Abel/epfl/dataset/frames/" + dataset
+    createFolder(frames)
+    frames = frames + "/%03d.bmp"
+
+    os.system("ffmpeg -i " + video + " -vf fps=25 \"" + frames + "\"")
+
+
 if __name__ == "__main__":
-    log = open(BASEFOLDER + "datasets.txt", "w")
+    # log = open(BASEFOLDER + "datasets.txt", "w")
     for dataset in getDatasets():
         print dataset, "..."
-        frames = extract(dataset)
-        print "...", frames
-        log.write(dataset + "," + str(frames)+"\n")
-    log.close()
+        extract_fix(dataset)
+        # frames = extract(dataset)
+        # print "...", frames
+        # log.write(dataset + "," + str(frames)+"\n")
+    # log.close()
