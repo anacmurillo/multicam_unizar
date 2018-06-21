@@ -45,6 +45,7 @@ def getGroupedDatasets():
         multis.setdefault(multi, []).append(single)
 
     del multis['Basketball/match5']
+    del multis['Passageway/passageway1']
     return multis
 
 

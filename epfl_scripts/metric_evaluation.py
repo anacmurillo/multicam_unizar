@@ -575,5 +575,5 @@ if __name__ == '__main__':
     # print evaluateMetricsGroup(getGroupedDatasets()['Laboratory/6p'], 'KCF', detector=5)
 
     # savecopy()
-    # graphGlobal([1, 5, 10])
-    graphGlobal([5])
+    graphGlobal([1, 5, 10])
+    # graphGlobal([5])
