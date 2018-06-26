@@ -50,11 +50,11 @@ def evaluateMetricsGroup(groupDataset, tracker, toFile=None, detector=5):
                         the_file.write(" ".join(map(str, [dataset, str(frame), id, xmin, ymin, xmax, ymax, "\n"])))
 
     iou_vectors = {}
-    for dataset in groupDataset:
+    for dataset_index, dataset in enumerate(groupDataset):
         gt_ids, data_groundTruth = getGroundTruth(dataset)
         try:
             sys.stdout = logFile
-            metrics, iou_vector = evaluateData(gt_ids, data_groundTruth, n_frames, n_ids, data[dataset], 'Detection - ' + dataset + ' - ' + tracker, False)
+            metrics, iou_vector = evaluateData(gt_ids, data_groundTruth, n_frames, n_ids, data[dataset], dataset + " (" + str(dataset_index+1)+"/"+str(len(groupDataset)) + ') - ' + tracker, False)
             iou_vectors[dataset] = iou_vector
         finally:
             sys.stdout = sys.__stdout__
@@ -160,12 +160,12 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids_original, data_track
                 durations_list.append(seen)
         durations[gt_id] = durations_max
 
-    plt.figure("graph_dur_" + label)
-    plt.suptitle(label, fontsize=16)
-    plt.hist(durations_list, bins=range(0, 500, 50))
+    #plt.figure("graph_dur_" + label)
+    #plt.suptitle(label, fontsize=16)
+    #plt.hist(durations_list, bins=range(0, 500, 50))
 
-    plt.figure("graph_" + label)
-    plt.suptitle(label, fontsize=16)
+    #plt.figure("graph_" + label)
+    #plt.suptitle(label, fontsize=16)
 
     # MOTP
     print "MOTP:"
@@ -214,14 +214,14 @@ def evaluateData(gt_ids, data_groundTruth, n_frames, tr_ids_original, data_track
     # plt.yticks(*zip(*list(enumerate(gt_ids))))
 
     # IOU_graph
-    # plt.figure("iou_graph_" + label)
-    # plt.subplot(2, 2, 3)
+    plt.figure("iou_graph_" + label)
+    #plt.subplot(2, 2, 3)
     iou_vectors = iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker_polished, label)
 
     # ID_graph
-    # plt.figure("id_graph_" + label)
+    plt.figure("id_graph_" + label)
     # plt.subplot(2, 2, 4)
-    # id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label)
+    id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label)
     #
     if block:
         plt.show()
@@ -275,6 +275,7 @@ def iou_graph(gt_ids, data_groundTruth, n_frames, data_tracker, label):
     plt.legend(legend, labels, bbox_to_anchor=(0.5, 1), loc='upper center', ncol=3, fontsize=10)
     plt.xlim([0, n_frames])
     plt.ylim([-0.5, len(gt_ids) + 0.5])
+    plt.suptitle(label, fontsize=16)
     plt.title('best IOU')
     plt.xlabel('frames')
     plt.ylabel('persons')
@@ -312,6 +313,7 @@ def id_graph(gt_ids, data_groundTruth, n_frames, tr_ids, data_tracker, label):
     plt.imshow(grid, extent=[0, grid.shape[1], 0, grid.shape[0]], aspect='auto', interpolation='none', origin='lower')
     plt.yticks(*zip(*[(i * gt_len + gt_len / 2., x) for i, x in enumerate(tr_ids)]))
     plt.gca().yaxis.set_minor_locator(pltticker.FixedLocator(range(grid.shape[0])))
+    plt.suptitle(label, fontsize=16)
     plt.title('all IOU')
     plt.xlabel('frames')
     plt.ylabel('persons (tracker/groundtruth)')
