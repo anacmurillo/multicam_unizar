@@ -2,7 +2,7 @@ import os
 
 import cv2
 
-from epfl_scripts.Utilities.groundTruthParser import getVideo, getDatasets
+from epfl_scripts.groundTruthParser import getVideo, getDatasets
 
 BASEFOLDER = "/home/jaguilar/Escritorio/videos/"
 

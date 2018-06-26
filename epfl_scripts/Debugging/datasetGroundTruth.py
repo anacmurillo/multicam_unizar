@@ -7,7 +7,7 @@ Internal debugging utility, no real usage.
 import cv2  # read video file
 
 from epfl_scripts.Utilities.colorUtility import getColors
-from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getDatasets, getVideo
+from epfl_scripts.groundTruthParser import getGroundTruth, getDatasets, getVideo
 
 # settings
 video_folder = "/home/jaguilar/Abel/epfl/dataset/CVLAB/"

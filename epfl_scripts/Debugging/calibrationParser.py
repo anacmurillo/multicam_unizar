@@ -10,7 +10,7 @@ import sys
 import cv2
 
 from epfl_scripts.Utilities.geometry_utils import f_multiply, Point2D
-from epfl_scripts.Utilities.groundTruthParser import getGroupedDatasets, getVideo, getCalibrationMatrix
+from epfl_scripts.groundTruthParser import getGroupedDatasets, getVideo, getCalibrationMatrix
 
 FLOOR = '__floor__'
 

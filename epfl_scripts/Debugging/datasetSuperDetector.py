@@ -6,7 +6,7 @@ Internal debugging utility, no real usage.
 
 import cv2  # read video file
 
-from epfl_scripts.Utilities.groundTruthParser import getDatasets, getSuperDetector, getVideo
+from epfl_scripts.groundTruthParser import getDatasets, getSuperDetector, getVideo
 
 TRAIL_LENGTH = 50
 

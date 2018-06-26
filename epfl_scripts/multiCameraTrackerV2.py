@@ -10,7 +10,7 @@ from epfl_scripts.Utilities.cache import cache_function
 from epfl_scripts.Utilities.colorUtility import getColors
 from epfl_scripts.Utilities.cv2Trackers import getTracker
 from epfl_scripts.Utilities.geometry_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox, f_average
-from epfl_scripts.Utilities.groundTruthParser import getVideo, getGroupedDatasets, getSuperDetector, getCalibrationMatrix
+from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets, getSuperDetector, getCalibrationMatrix
 
 WIN_NAME = "Tracking"
 

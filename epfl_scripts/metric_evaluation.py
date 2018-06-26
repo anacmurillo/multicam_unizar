@@ -13,7 +13,7 @@ from datetime import datetime
 
 from epfl_scripts.Utilities.colorUtility import getColors, blendColors
 from epfl_scripts.Utilities.cv2Trackers import evaluateTracker, getTrackers
-from epfl_scripts.Utilities.groundTruthParser import getGroundTruth, getGroupedDatasets
+from epfl_scripts.groundTruthParser import getGroundTruth, getGroupedDatasets
 from epfl_scripts.multiCameraTrackerV2 import evalMultiTracker
 
 
