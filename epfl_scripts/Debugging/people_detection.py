@@ -1,3 +1,8 @@
+"""
+Shows the detections of the HOGDescriptor of opencv.
+
+Internal debugging utility, no real usage.
+"""
 # import cv2
 import epfl_scripts.Utilities.cv2Visor as cv2
 from epfl_scripts.Utilities.groundTruthParser import getVideo

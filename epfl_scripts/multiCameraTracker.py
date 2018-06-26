@@ -1,3 +1,6 @@
+"""
+Old version of the multicamera tracker. Keep for history reasons. Probably broken.
+"""
 import numpy as np
 import sys
 

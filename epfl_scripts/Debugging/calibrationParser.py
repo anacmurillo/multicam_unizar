@@ -1,3 +1,9 @@
+"""
+Allows to view the calibration on the datasets.
+Moving the mouse on one camera places a point on the same spot on other cameras, based on the calibration matrix.
+
+Internal debugging utility, no real usage.
+"""
 import numpy as np
 import sys
 

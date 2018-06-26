@@ -1,6 +1,6 @@
 """
-Custom implementation of an 'advanced' tracker
-You can redefine bboxes
+Custom implementation of an 'advanced' tracker where you can redefine bboxes.
+Currently using only lineal movement
 """
 
 
@@ -30,10 +30,3 @@ class MyTracker:
         # diff = new - prev = new - ( last - diff ) = new - last + diff
         self.diff = tuple(newbbox[i] - self.lastBbox[i] + self.diff[i] for i in range(4))
         self.lastBbox = newbbox
-
-
-########################### internal #################################
-
-
-if __name__ == '__main__':
-    print "TODO"

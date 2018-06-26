@@ -1,5 +1,5 @@
 """
-Shows the groundtruth dataset.
+Shows the groundtruth of the datasets.
 
 Internal debugging utility, no real usage.
 """

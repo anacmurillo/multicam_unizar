@@ -1,3 +1,6 @@
+"""
+Implementation of the algorithm. Main file
+"""
 import numpy as np
 import sys
 

@@ -1,5 +1,5 @@
 """
-Evaluation of metrics
+Evaluation of metrics from the algorithm.
 """
 import math
 import matplotlib.colors as pltcolors

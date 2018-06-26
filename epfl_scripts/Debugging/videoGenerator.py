@@ -1,5 +1,7 @@
 """
-Generates a video showing both the dataset and the result of the tracker with colors
+Generates a video showing both the dataset and the result of the tracker with colors.
+
+Internal debugging utility, no real usage.
 """
 
 import os
