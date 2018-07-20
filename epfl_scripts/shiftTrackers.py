@@ -2,9 +2,8 @@
 Custom implementation of Meanshift and CAMshift
 base code from https://docs.opencv.org/3.4.0/db/df8/tutorial_py_meanshift.html
 """
-import numpy as np
-
 import cv2
+import numpy as np
 
 from epfl_scripts.groundTruthParser import getVideo
 

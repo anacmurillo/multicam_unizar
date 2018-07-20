@@ -15,9 +15,11 @@ import os  # file operations
 
 import cv2  # opencv
 
-groundtruth_folder = "/home/jaguilar/Abel/epfl/dataset/merayxu-multiview-object-tracking-dataset-d2990e227c57/EPFL/"
-video_folder = "/home/jaguilar/Abel/epfl/dataset/frames/"
-superDetector_folder = "/home/jaguilar/Abel/epfl/dataset/superDetector/"
+basefolder = "/media/datos/abel/epfl/dataset/"
+
+groundtruth_folder = basefolder+"merayxu-multiview-object-tracking-dataset-d2990e227c57/EPFL/"
+video_folder = basefolder+"frames/"
+superDetector_folder = basefolder+"superDetector/"
 
 
 def getDatasets():

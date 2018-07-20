@@ -1,8 +1,14 @@
+"""
+Functions and classes math and geometry related
+"""
 import math
 
 
 class Bbox:
-
+    """
+    Represents a bounding box (region) on a plane.
+    Can transform between 'opposite corners' [(xmin, ymin), (xmax, ymax)] and 'size' [(xmin, ymin), height, width] coordinates
+    """
     def __init__(self, xmin, xmax, width, ymin, ymax, height):
         self.xmin = xmin
         self.xmax = xmax
@@ -53,6 +59,10 @@ class Bbox:
 
 
 class Point2D:
+    """
+    Represents a 2d point.
+    Can transform between normal (x,y) and homogeneous (x,y,s) coordinates
+    """
     def __init__(self, x, y, s=1):
         self.x = x
         self.y = y
@@ -71,10 +81,17 @@ def f_iou(boxA, boxB):
     :return: value in range [0,1]. 0 if disjointed bboxes, 1 if equal bboxes
     """
 
-    intersection = f_area(Bbox.XmYmXMYM(max(boxA.xmin, boxB.xmin), max(boxA.ymin, boxB.ymin), min(boxA.xmax, boxB.xmax), min(boxA.ymax, boxB.ymax)))
+    intersection = f_area(f_intersection(boxA,boxB))
 
     union = f_area(boxA) + f_area(boxB) - intersection
     return float(intersection) / union
+
+
+def f_intersection(boxA, boxB):
+    """
+    :return: the bbox intersection of :param boxA:  with :param boxB:
+    """
+    return Bbox.XmYmXMYM(max(boxA.xmin, boxB.xmin), max(boxA.ymin, boxB.ymin), min(boxA.xmax, boxB.xmax), min(boxA.ymax, boxB.ymax))
 
 
 def f_area(bbox):
@@ -95,6 +112,9 @@ def f_subtract(a, b):
 
 
 def f_center(bbox):
+    """
+    :return: center point of the :param bbox:
+    """
     return Point2D(bbox.xmin + bbox.width / 2., bbox.ymin + bbox.height / 2.)
 
 
@@ -108,6 +128,12 @@ def f_euclidian(a, b):
 
 
 def f_multiply(matrix, p):
+    """
+    :return: result of :param matrix: * :param p: (vector) as a 2d point
+    :param matrix:
+    :param p:
+    :return:
+    """
     rows = [0, 0, 0]
     for i in range(3):
         for j in range(3):
@@ -116,6 +142,12 @@ def f_multiply(matrix, p):
 
 
 def f_average(points, weights):
+    """
+    :return: average point of the list of :param points: using :param weights: (both should be same length)
+    :param points:
+    :param weights:
+    :return:
+    """
     n = len(points)
     if n == 0:
         return None

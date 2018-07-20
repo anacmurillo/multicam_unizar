@@ -6,10 +6,11 @@ import matplotlib.colors as pltcolors
 import matplotlib.patches as pltpatches
 import matplotlib.pyplot as plt
 import matplotlib.ticker as pltticker
-import numpy as np
 import sys
 import traceback
 from datetime import datetime
+
+import numpy as np
 
 from epfl_scripts.Utilities.colorUtility import getColors, blendColors
 from epfl_scripts.Utilities.cv2Trackers import evaluateTracker, getTrackers

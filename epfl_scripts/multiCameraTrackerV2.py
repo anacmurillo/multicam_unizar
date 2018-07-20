@@ -1,8 +1,11 @@
 """
 Implementation of the algorithm. Main file
 """
-import numpy as np
 import sys
+
+import numpy as np
+# from cachedDetectron import CachedDetectron as Detectron
+from detectron import Detectron
 
 # import cv2
 import epfl_scripts.Utilities.cv2Visor as cv2
@@ -10,7 +13,7 @@ from epfl_scripts.Utilities.cache import cache_function
 from epfl_scripts.Utilities.colorUtility import getColors
 from epfl_scripts.Utilities.cv2Trackers import getTracker
 from epfl_scripts.Utilities.geometry_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox, f_average
-from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets, getSuperDetector, getCalibrationMatrix
+from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets, getCalibrationMatrix
 
 WIN_NAME = "Tracking"
 
@@ -229,7 +232,7 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
                 if predictions[camera][id].newid >= 0:
                     newid = predictions[camera][id].newid
                 else:
-                    newid = maxid+1
+                    newid = maxid + 1
                     maxid = newid
                 predictions[camera][newid] = predictions[camera][id]
                 predictions[camera][id] = Prediction()
@@ -315,14 +318,8 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
     # colors
     colors = getColors(12)
 
-    # parse detector
-    for dataset in groupDataset:
-        _data = getSuperDetector(dataset)
-
-        for iter_frames in _data.iterkeys():
-            detector.setdefault(iter_frames, {})[dataset] = []
-            for xmin, ymin, xmax, ymax in _data[iter_frames]:
-                detector[iter_frames][dataset].append(Bbox.XmYmXMYM(xmin, ymin, xmax, ymax))
+    # get detector
+    detector = Detectron()
 
     # initialize videos
     videos = {}
@@ -373,6 +370,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
                         ok, bbox = tracker.update(frames[dataset])
                     except Exception:
                         ok = False
+                        bbox = None
                     if ok:
                         predictions[dataset][id].bbox = Bbox.XmYmWH(*bbox)
                         predictions[dataset][id].trackerFound = True
@@ -380,10 +378,16 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
                         predictions[dataset][id].trackerFound = False
 
         # detector needed
-        detector_needed = frame_index % DETECTOR_FIRED == 0
+        if frame_index % DETECTOR_FIRED == 0:
+            detector_results = {}
+            for dataset in groupDataset:
+                results = detector.evaluateImage(frames[dataset], str(dataset) + " - " + str(frame_index))
+                detector_results[dataset] = [Bbox.XmYmXMYM(result[0], result[1], result[2], result[3]) for result in results]
+        else:
+            detector_results = None
 
         # merge all predictions -> estimations
-        estimations, ids, maxid = estimateFromPredictions(predictions, ids, maxid, detector[frame_index] if detector_needed else None, groupDataset, frames)
+        estimations, ids, maxid = estimateFromPredictions(predictions, ids, maxid, detector_results, groupDataset, frames)
 
         # initialize new trackers
         for dataset in groupDataset:
@@ -483,14 +487,14 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
 if __name__ == '__main__':
     # dataset = getGroupedDatasets()['Terrace/terrace1']
     # dataset = getGroupedDatasets()['Passageway/passageway1']
-    # dataset = getGroupedDatasets()['Laboratory/6p']
-    dataset = getGroupedDatasets()['Campus/campus7']
+    dataset = getGroupedDatasets()['Laboratory/6p']
+    # dataset = getGroupedDatasets()['Campus/campus7']
 
     # tracker = 'BOOSTING'  # slow good
-    tracker = 'KCF' # fast bad
+    tracker = 'KCF'  # fast bad
     # tracker = 'MYTRACKER'  # with redefine
 
-    detector_fired = 1
+    detector_fired = 5
 
     print dataset, tracker, detector_fired
     evalMultiTracker(dataset, tracker, True, detector_fired)

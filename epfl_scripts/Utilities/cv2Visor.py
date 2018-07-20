@@ -14,12 +14,11 @@ import cv2Visor as cv2 # instead of 'import cv2'
 # rest of the code. The object will act as the cv2 package, no other changes are required.
 
 """
+import cv2
 # noinspection PyUnresolvedReferences
 from cv2 import *
 # noinspection PyUnresolvedReferences
 from cv2 import __version__
-
-import cv2
 
 # CONF
 __MAXSAVED = 50

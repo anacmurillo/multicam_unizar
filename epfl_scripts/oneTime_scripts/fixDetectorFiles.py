@@ -1,7 +1,7 @@
 import csv
-import numpy as np
 
 import cv2
+import numpy as np
 
 from epfl_scripts.groundTruthParser import getDatasets, getVideo, getSuperDetector
 from epfl_scripts.oneTime_scripts.frameExtractor import createFolder

@@ -5,6 +5,9 @@
 
 import colorsys  # generate colors
 
+C_WHITE = (255, 255, 255)
+C_BLACK = (0, 0, 0)
+
 
 def getColors(n):
     """

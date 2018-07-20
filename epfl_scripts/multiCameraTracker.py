@@ -1,8 +1,9 @@
 """
 Old version of the multicamera tracker. Keep for history reasons. Probably broken.
 """
-import numpy as np
 import sys
+
+import numpy as np
 
 # import cv2
 import epfl_scripts.Utilities.cv2Visor as cv2

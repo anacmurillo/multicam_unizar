@@ -4,10 +4,10 @@ Moving the mouse on one camera places a point on the same spot on other cameras,
 
 Internal debugging utility, no real usage.
 """
-import numpy as np
 import sys
 
 import cv2
+import numpy as np
 
 from epfl_scripts.Utilities.geometry_utils import f_multiply, Point2D
 from epfl_scripts.groundTruthParser import getGroupedDatasets, getVideo, getCalibrationMatrix
