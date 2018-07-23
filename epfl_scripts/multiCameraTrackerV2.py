@@ -1,11 +1,17 @@
 """
 Implementation of the algorithm. Main file
 """
+
+try:
+    from detectron import Detectron
+except Exception as e:
+    print("Detectron not available, using cached one. Full exception below:")
+    print(e)
+    from cachedDetectron import CachedDetectron as Detectron
+
 import sys
 
 import numpy as np
-# from cachedDetectron import CachedDetectron as Detectron
-from detectron import Detectron
 
 # import cv2
 import epfl_scripts.Utilities.cv2Visor as cv2
@@ -442,15 +448,25 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
 
             # display overview
             frame = np.zeros((512, 512, 3), np.uint8)
-            for dataset in groupDataset:
-                for id in ids:
+            for id in ids:
+                color = colors[id % len(colors)] if id >= 0 else (255, 255, 255)
+                thick = 2 if id >= 0 else 1
+
+                # each point in camera
+                for dataset in groupDataset:
                     bbox = estimations[dataset][id].bbox
                     if bbox is None: continue
 
                     px, py = to3dWorld(dataset, bbox).getAsXY()
-                    color = colors[id % len(colors)] if id >= 0 else (255, 255, 255)
-                    thick = 2 if id >= 0 else 1
                     cv2.circle(frame, (int(px), int(py)), 1, color, thick)
+
+                # center
+                if id>= 0:
+                    center, _ = findCenterOfGroup(estimations, id, groupDataset)
+                    x, y = center.getAsXY()
+                    cv2.drawMarker(frame, (int(x), int(y)), (0, 0, 0), 3, 4)
+                    cv2.drawMarker(frame, (int(x), int(y)), color, 0, 2)
+
             cv2.putText(frame, str(frame_index), (0, 512), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
             cv2.imshow(WIN_NAME + "_overview", frame)
             # /end display overview
@@ -477,6 +493,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
     print ""
     if display:
         cv2.destroyWindow(WIN_NAME)
+        cv2.destroyWindow(WIN_NAME + "_overview")
 
     for dataset in groupDataset:
         videos[dataset].release()

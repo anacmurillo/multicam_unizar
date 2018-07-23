@@ -9,6 +9,7 @@ class Bbox:
     Represents a bounding box (region) on a plane.
     Can transform between 'opposite corners' [(xmin, ymin), (xmax, ymax)] and 'size' [(xmin, ymin), height, width] coordinates
     """
+
     def __init__(self, xmin, xmax, width, ymin, ymax, height):
         self.xmin = xmin
         self.xmax = xmax
@@ -63,6 +64,7 @@ class Point2D:
     Represents a 2d point.
     Can transform between normal (x,y) and homogeneous (x,y,s) coordinates
     """
+
     def __init__(self, x, y, s=1):
         self.x = x
         self.y = y
@@ -81,7 +83,7 @@ def f_iou(boxA, boxB):
     :return: value in range [0,1]. 0 if disjointed bboxes, 1 if equal bboxes
     """
 
-    intersection = f_area(f_intersection(boxA,boxB))
+    intersection = f_area(f_intersection(boxA, boxB))
 
     union = f_area(boxA) + f_area(boxB) - intersection
     return float(intersection) / union
