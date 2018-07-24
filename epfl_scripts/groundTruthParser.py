@@ -21,6 +21,8 @@ groundtruth_folder = basefolder+"merayxu-multiview-object-tracking-dataset-d2990
 video_folder = basefolder+"frames/"
 superDetector_folder = basefolder+"superDetector/"
 
+# download the files here: https://drive.google.com/open?id=1K02knTTWmCn00eXp2tRbwNr7BGLSsueM
+
 
 def getDatasets():
     """
