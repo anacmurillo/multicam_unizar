@@ -124,7 +124,7 @@ class CrossDetector:
         self.crosses = []
         self.framesNotCross = self.LastSawId()
 
-    def addOcclusion(self, occlusions, frame):
+    def addOcclusions(self, occlusions, frame):
         for occlusion in occlusions:
             # update all current crosses
             used = False
@@ -203,7 +203,7 @@ def findOcclusions(track_ids, bboxes):
     return occlusions
 
 
-def evalOne(dataset):
+def evalOne(dataset, display):
     """
     Shows the groundtruth of the filename visually
     :param dataset: the dataset filename
@@ -227,41 +227,43 @@ def evalOne(dataset):
     while success:
         print frame
 
-        # draw rectangles
-        for id in track_ids:
-            bbox, found = parseData(data[frame][id])
-            if found:
-                cv2.rectangle(image, (bbox.xmin, bbox.ymin), (bbox.xmax, bbox.ymax), colors[id], 1)
-                cv2.putText(image, str(id), (bbox.xmin, bbox.ymin + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, colors[id], 1)
-        cv2.putText(image, str(frame), (0, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (1, 1, 1), 1)
-
         # find oclussions
         occlusions = findOcclusions(track_ids, data[frame])
-
-        # display occlusions
         for (idA, idB) in occlusions:
             print "La persona ", idB, "pasa por detras de", idA
-            bboxA, found = parseData(data[frame][idA])
-            bboxB, found = parseData(data[frame][idB])
 
-            # draw rectangles wider
-            cv2.rectangle(image, (bboxA.xmin, bboxA.ymin), (bboxA.xmax, bboxA.ymax), colors[idA], 2)
-            cv2.rectangle(image, (bboxB.xmin, bboxB.ymin), (bboxB.xmax, bboxB.ymax), colors[idB], 2)
+        crossDetector.addOcclusions(occlusions, frame)
 
-            # connect rectangles
-            color = blendColors(colors[idA], colors[idB])
-            cv2.line(image, (bboxA.xmin, bboxA.ymin), (bboxB.xmin, bboxB.ymin), color, 2)
-            cv2.line(image, (bboxA.xmin, bboxA.ymax), (bboxB.xmin, bboxB.ymax), color, 2)
-            cv2.line(image, (bboxA.xmax, bboxA.ymin), (bboxB.xmax, bboxB.ymin), color, 2)
-            cv2.line(image, (bboxA.xmax, bboxA.ymax), (bboxB.xmax, bboxB.ymax), color, 2)
+        if display:
+            # draw rectangles
+            for id in track_ids:
+                bbox, found = parseData(data[frame][id])
+                if found:
+                    cv2.rectangle(image, (bbox.xmin, bbox.ymin), (bbox.xmax, bbox.ymax), colors[id], 1)
+                    cv2.putText(image, str(id), (bbox.xmin, bbox.ymin + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, colors[id], 1)
+            cv2.putText(image, str(frame), (0, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (1, 1, 1), 1)
 
-        crossDetector.addOcclusion(occlusions, frame)
+            # draw occlusions
+            for (idA, idB) in occlusions:
+                bboxA, found = parseData(data[frame][idA])
+                bboxB, found = parseData(data[frame][idB])
 
-        # display image
-        cv2.imshow(dataset, image)
+                # draw rectangles wider
+                cv2.rectangle(image, (bboxA.xmin, bboxA.ymin), (bboxA.xmax, bboxA.ymax), colors[idA], 2)
+                cv2.rectangle(image, (bboxB.xmin, bboxB.ymin), (bboxB.xmax, bboxB.ymax), colors[idB], 2)
 
-        if cv2.waitKey(500 if len(occlusions) else 1) & 0xff == 27:
-            break
+                # connect rectangles
+                color = blendColors(colors[idA], colors[idB])
+                cv2.line(image, (bboxA.xmin, bboxA.ymin), (bboxB.xmin, bboxB.ymin), color, 2)
+                cv2.line(image, (bboxA.xmin, bboxA.ymax), (bboxB.xmin, bboxB.ymax), color, 2)
+                cv2.line(image, (bboxA.xmax, bboxA.ymin), (bboxB.xmax, bboxB.ymin), color, 2)
+                cv2.line(image, (bboxA.xmax, bboxA.ymax), (bboxB.xmax, bboxB.ymax), color, 2)
+
+            # display image
+            cv2.imshow(dataset, image)
+
+            if cv2.waitKey(500 if len(occlusions) else 1) & 0xff == 27:
+                break
 
         # next
         success, image = vidcap.read()
@@ -274,4 +276,4 @@ def evalOne(dataset):
 
 
 if __name__ == '__main__':
-    evalOne('Laboratory/6p-c0')
+    evalOne('Laboratory/6p-c0', False)
