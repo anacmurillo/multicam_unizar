@@ -1,18 +1,21 @@
 """
-Custom visor that allows rewind up to 50 frames (configurable).
+Custom visor that allows pausing and rewind up to 50 frames (configurable).
+To pause it press the SPACE key (configurable)
+
 Keys:
 right, left (a, d): show +- 1 frame.
 up, down (w, s): show +- 10 frames
 start: show first saved frame
 end: show last frame
-space: shows the next frame and stops
-ESC: stop
+space: computes the next frame and pauses again (same as ESC+SPACE instantly)
+ESC: resume execution
 
 
 Normal usage:
 
 import cv2Visor as cv2 # instead of 'import cv2'
 # rest of the code. The object will act as the cv2 package, no other changes are required.
+# optional to configure, example: cv2.configure(100, 13)
 
 """
 import cv2
@@ -23,19 +26,24 @@ from cv2 import __version__
 
 # CONF
 __MAXSAVED = 50
+__PAUSEKEY = 32  # space
 __frames = {}
 __indexes = {}
 __step = False
 
 
-def configure(max_saved):
+def configure(max_saved, pause_key):
     """
-    Configure the maximum frames to save
+    Configure the visor properties
     :param max_saved: maximum frames to save (for each window)
+    :param pause_key: When pressed, the execution will be paused
     :return:
     """
     global __MAXSAVED
     __MAXSAVED = max_saved
+
+    global __PAUSEKEY
+    __PAUSEKEY = pause_key
 
 
 # Override
@@ -48,30 +56,55 @@ def imshow(winname, mat):
     """
     cv2.imshow(winname, mat)
     _frames = __frames.setdefault(winname, [])
-    if len(_frames) >= __MAXSAVED:
+    if len(_frames) > __MAXSAVED:
         _frames.pop(0)
     _frames.append(mat)
-    __indexes[winname] = len(_frames)
+    __indexes[winname] = len(_frames) - 1
 
 
 # Override
 def waitKey(delay):
     """
-    Same as cv2.waitKey but pressing an arrow button (or wasd) or start/end will pause the execution and allow the user to review past frames.
-    While in review mode press ESC or other button to exit
+    Same as cv2.waitKey but pressing the defined key (space by default) pauses the execution and allows rewinding.
     :param delay: delay to wait for keys (can be more if user pauses)
-    :return: key pressed (unles user paused and exited, which will return 255)
+    :return: same as cv2.waitKey (unless user paused and exited, which will return 255)
+    """
+
+    global __step
+    if __step:
+        # nextStep, stop again once
+        __step = False
+    else:
+        _k = cv2.waitKey(delay)
+        if (_k & 0xff) != __PAUSEKEY:
+            # no pause key, return
+            return _k
+
+    # pause
+    __pauseDisplay()
+    return 255  # no key
+
+
+def __pauseDisplay():
+    """
+    Internal pause display, see header
+    :return: nothing
     """
     global __step
 
-    _repeat = __step
-    __step = False
 
     while True:
 
-        _k = cv2.waitKey(delay if not _repeat else 0) & 0xff
+        # change titles
+        for _winname in __frames:
+            currentFrame = len(__frames[_winname]) - 1 - __indexes[_winname]
+            cv2.setWindowTitle(_winname, "{} *PAUSED{}*".format(_winname, " " + str(-currentFrame) if currentFrame != 0 else ""))
+
+        # wait key infinitely
+        _k = cv2.waitKey(0) & 0xff
         _index = 0
 
+        # parse key
         if _k == 27:  # ESC
             break
         elif _k == 83 or _k == 100:  # right, d
@@ -92,15 +125,14 @@ def waitKey(delay):
         elif _k != 255:  # other
             print "pressed", _k
 
-        if _index != 0 or _repeat:
-            _repeat = True
-            for _winname in __frames:
-                __indexes[_winname] = sorted((0, __indexes[_winname] + _index, len(__frames[_winname]) - 1))[1]  # instead of min(a,max(b,c)) because cv2 redefines min and max
-                cv2.imshow(_winname, __frames[_winname][__indexes[_winname]])
-        else:
-            break
+        # update displays
+        for _winname in __frames:
+            __indexes[_winname] = sorted((0, __indexes[_winname] + _index, len(__frames[_winname]) - 1))[1]  # instead of min(a,max(b,c)) because cv2 redefines min and max
+            cv2.imshow(_winname, __frames[_winname][__indexes[_winname]])
 
-    return _k if not _repeat else 255
+    # restore titles
+    for _winname in __frames:
+        cv2.setWindowTitle(_winname, _winname)
 
 
 if __name__ == "__main__":
