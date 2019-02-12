@@ -5,6 +5,7 @@ right, left (a, d): show +- 1 frame.
 up, down (w, s): show +- 10 frames
 start: show first saved frame
 end: show last frame
+space: shows the next frame and stops
 ESC: stop
 
 
@@ -24,6 +25,7 @@ from cv2 import __version__
 __MAXSAVED = 50
 __frames = {}
 __indexes = {}
+__step = False
 
 
 def configure(max_saved):
@@ -60,7 +62,10 @@ def waitKey(delay):
     :param delay: delay to wait for keys (can be more if user pauses)
     :return: key pressed (unles user paused and exited, which will return 255)
     """
-    _repeat = False
+    global __step
+
+    _repeat = __step
+    __step = False
 
     while True:
 
@@ -81,6 +86,9 @@ def waitKey(delay):
             _index = - __MAXSAVED
         elif _k == 87:  # end
             _index = __MAXSAVED
+        elif _k == 32:  # space
+            __step = True
+            break
         elif _k != 255:  # other
             print "pressed", _k
 
