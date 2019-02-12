@@ -4,14 +4,17 @@ from epfl_scripts.Utilities.colorUtility import getColors, blendColors
 from epfl_scripts.Utilities.geometry_utils import Bbox, f_area, f_intersection
 from epfl_scripts.groundTruthParser import getGroundTruth, getVideo
 
-OCCLUSION_IOU = 0.85
-CROSS_FRAMES_BEFORE = 5
-CROSS_FRAMES_DURING = 5
-CROSS_FRAMES_AFTER = 5
+OCCLUSION_IOU = 0.85  # IOU to detect as occlusion (iff iou(intersection, bbox)>= param)
+CROSS_FRAMES_BEFORE = 5  # frames required before cross
+CROSS_FRAMES_DURING = 5  # frames required during cross
+CROSS_FRAMES_AFTER = 5  # frames required after cross
 
 
 class CrossDetector:
     class Cross:
+        """
+        Saves and updates the state of a cross, defined as 'frames before/while/after someone crosses behind another one'
+        """
         STATE_INVALID = -1
         STATE_DURING = 1
         STATE_AFTER = 2
@@ -100,44 +103,35 @@ class CrossDetector:
             return self.state != self.STATE_INVALID
 
         def __str__(self):
-            return "Cross {}<<{} :: {}-{}-{}-{} {}".format(self.idFront, self.idBack,
-                                                           self.frameFirstSaw - self.framesBefore, self.frameFirstSaw, self.frameFirstSaw + self.framesDuring, self.frameFirstSaw + self.framesDuring + self.framesAfter,
-                                                           self.state if self.state != self.STATE_END else "")
-
-    class LastSawId:
-        def __init__(self):
-            self.ids = {}
-
-        def updateFrame(self, (id1, id2), frame):
-            self.ids[id1] = frame
-            self.ids[id2] = frame
-
-        def get(self, (id1, id2)):
-            lastSaw = 0
-            if id1 in self.ids:
-                lastSaw = max(lastSaw, self.ids[id1])
-            if id2 in self.ids:
-                lastSaw = max(lastSaw, self.ids[id2])
-            return lastSaw
+            return "Cross {} behind {} :: {}-{}-{}-{} {}".format(
+                self.idBack, self.idFront,
+                self.frameFirstSaw - self.framesBefore, self.frameFirstSaw, self.frameFirstSaw + self.framesDuring, self.frameFirstSaw + self.framesDuring + self.framesAfter,
+                self.state if self.state != self.STATE_END else "")
 
     def __init__(self):
         self.crosses = []
-        self.framesNotCross = self.LastSawId()
+        self.lastSaw = {}
 
     def addOcclusions(self, occlusions, frame):
-        for occlusion in occlusions:
+        for (idF, idB) in occlusions:
             # update all current crosses
             used = False
             for cross in self.crosses:
                 # update crosses
-                used |= cross.updateFrame(occlusion)
+                used |= cross.updateFrame((idF, idB))
             if not used:
                 # occlusion not used, add as new cross
-                self.crosses.append(self.Cross(occlusion, frame - self.framesNotCross.get(occlusion), frame))
+                last = 0
+                if idF in self.lastSaw:
+                    last = max(last, idF)
+                if idB in self.lastSaw:
+                    last = max(last, idB)
+                self.crosses.append(self.Cross((idF, idB), frame - last, frame))
 
-        for occlusion in occlusions:
+        for (idF, idB) in occlusions:
             # update framesNotCross
-            self.framesNotCross.updateFrame(occlusion, frame)
+            self.lastSaw[idF] = frame
+            self.lastSaw[idB] = frame
 
         for cross in self.crosses:
             # end update process
@@ -168,7 +162,7 @@ def parseData((xmin, ymin, xmax, ymax, lost, occluded, generated, label)):
 
 def findOcclusions(track_ids, bboxes):
     """
-    finds pairs of ids where
+    finds pairs of ids where id2 'crossed behind' id1
     :param track_ids: list of all possible ids
     :param bboxes: list of boxes for each id
     :return: list of pairs (id1, id2) meaning 'id2 is behind id1'
@@ -205,8 +199,9 @@ def findOcclusions(track_ids, bboxes):
 
 def evalOne(dataset, display):
     """
-    Shows the groundtruth of the filename visually
+    Finds the cross on this video
     :param dataset: the dataset filename
+    :param display:
     """
     # read groundtruth
     track_ids, data = getGroundTruth(dataset)
@@ -276,4 +271,4 @@ def evalOne(dataset, display):
 
 
 if __name__ == '__main__':
-    evalOne('Laboratory/6p-c0', False)
+    evalOne('Laboratory/6p-c0', True)
