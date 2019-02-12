@@ -21,7 +21,7 @@ def getColors(n):
     return colors
 
 
-def blendColors(a, b, t):
+def blendColors(a, b, t = 0.5):
     """
     Returns the blending of the colors based on a 0-1 param.
     t=0 -> return a
