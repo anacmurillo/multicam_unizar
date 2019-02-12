@@ -2,14 +2,14 @@
 Evaluation of metrics from the algorithm.
 """
 import math
-import matplotlib.colors as pltcolors
-import matplotlib.patches as pltpatches
-import matplotlib.pyplot as plt
-import matplotlib.ticker as pltticker
 import sys
 import traceback
 from datetime import datetime
 
+import matplotlib.colors as pltcolors
+import matplotlib.patches as pltpatches
+import matplotlib.pyplot as plt
+import matplotlib.ticker as pltticker
 import numpy as np
 
 from epfl_scripts.Utilities.colorUtility import getColors, blendColors
@@ -493,6 +493,9 @@ def f_euclidian(a, b):
 
 
 def average(list, default=None):
+    """
+    :returns: the average of the not-None elements of :list:, or :default: if no not-None elements are found
+    """
     filterlist = [i for i in list if i is not None]
     return float(sum(filterlist)) / float(len(filterlist)) if len(filterlist) > 0 else default
 
@@ -500,6 +503,9 @@ def average(list, default=None):
 #########
 
 def savecopy():
+    """
+    Save all on savedata. (snapshot)
+    """
     for groupedDataset, groupedDatasets in getGroupedDatasets().iteritems():
         for tracker in getTrackers()[1:2]:
             label = "savedata/" + str(datetime.now().strftime("%m-%d")) + "_" + groupedDataset.replace("/", "-") + "_" + tracker
@@ -512,6 +518,10 @@ def savecopy():
 
 
 def graphGlobal(detector_values):
+    """
+    evaluates and saves results of all, including average.
+    TFM results
+    """
     with open("savedata/global.txt", "w") as global_file:
         global_file.write("dataset\tdetector\tvalues...\n")
         data = {}
@@ -564,19 +574,13 @@ def graphGlobal(detector_values):
 
 
 if __name__ == '__main__':
-    # evaluateMetrics("Laboratory/6p-c0", 'MEANSHIFT')
-    # evaluateMetrics("Laboratory/6p-c0", 'CAMSHIFT')
-    # evaluateMetrics("Basketball/match5-c2")
 
-    # for dataset in getDatasets():
-    #    print dataset
-    #    evaluateMetrics(dataset)
+    # show results
+    print evaluateMetricsGroup(getGroupedDatasets()['Laboratory/6p'], 'KCF', detector=5)
 
-    # V2
-
-    # evaluateMetricsGroup(getGroupedDatasets()['Laboratory/6p'], 'KCF', detector=5)
-    # print evaluateMetricsGroup(getGroupedDatasets()['Laboratory/6p'], 'KCF', detector=5)
-
+    # save snapshots, old
     # savecopy()
-    graphGlobal([1, 5, 10])
+
+    # save results
+    # graphGlobal([1, 5, 10])
     # graphGlobal([5])

@@ -502,16 +502,21 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
 
 
 if __name__ == '__main__':
+
+    # choose dataset
     # dataset = getGroupedDatasets()['Terrace/terrace1']
     # dataset = getGroupedDatasets()['Passageway/passageway1']
     dataset = getGroupedDatasets()['Laboratory/6p']
     # dataset = getGroupedDatasets()['Campus/campus7']
 
+    # choose tracker
     # tracker = 'BOOSTING'  # slow good
     tracker = 'KCF'  # fast bad
     # tracker = 'MYTRACKER'  # with redefine
 
+    # choose parameter
     detector_fired = 5
 
+    # run
     print dataset, tracker, detector_fired
     evalMultiTracker(dataset, tracker, True, detector_fired)
