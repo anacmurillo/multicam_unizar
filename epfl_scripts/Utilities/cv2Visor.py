@@ -28,7 +28,6 @@ from cv2 import __version__
 __MAXSAVED = 50
 __PAUSEKEY = 32  # space
 __frames = {}
-__indexes = {}
 __step = False
 
 
@@ -54,12 +53,13 @@ def imshow(winname, mat):
     :param mat: frame to show
     :return: None
     """
-    cv2.imshow(winname, mat)
-    _frames = __frames.setdefault(winname, [])
-    if len(_frames) > __MAXSAVED:
-        _frames.pop(0)
-    _frames.append(mat)
-    __indexes[winname] = len(_frames) - 1
+    r = cv2.imshow(winname, mat)
+
+    frames = __frames.setdefault(winname, [])  # set if nonexistent, and get
+    if len(frames) > __MAXSAVED:
+        frames.pop()
+    frames.insert(0, mat)
+    return r
 
 
 # Override
@@ -75,14 +75,37 @@ def waitKey(delay):
         # nextStep, stop again once
         __step = False
     else:
-        _k = cv2.waitKey(delay)
-        if (_k & 0xff) != __PAUSEKEY:
+        k = cv2.waitKey(delay)
+        if (k & 0xff) != __PAUSEKEY:
             # no pause key, return
-            return _k
+            return k
 
     # pause
     __pauseDisplay()
     return 255  # no key
+
+
+def destroyWindow(winname):
+    """
+    Same as cv2.destroyWindow, removes saved images from the specified winname too
+    """
+    r = cv2.destroyWindow(winname)
+
+    if winname in __frames:
+        del __frames[winname]
+
+    return r
+
+
+def destroyAllWindows():
+    """
+    Same as cv2.destroyAllWindows, removes all saved images too
+    """
+    r = cv2.destroyAllWindows()
+
+    __frames.clear()
+
+    return r
 
 
 def __pauseDisplay():
@@ -92,47 +115,54 @@ def __pauseDisplay():
     """
     global __step
 
+    # init
+    indexes = {}
+    for winname in __frames:
+        indexes[winname] = 0
 
     while True:
-
         # change titles
-        for _winname in __frames:
-            currentFrame = len(__frames[_winname]) - 1 - __indexes[_winname]
-            cv2.setWindowTitle(_winname, "{} *PAUSED{}*".format(_winname, " " + str(-currentFrame) if currentFrame != 0 else ""))
+        for winname in __frames:
+            if indexes[winname] == 0:
+                cv2.setWindowTitle(winname, "{} *PAUSED*".format(winname))
+            else:
+                cv2.setWindowTitle(winname, "{} *REWIND (-{}/{})*".format(winname, indexes[winname], len(__frames[winname]) - 1))
 
-        # wait key infinitely
-        _k = cv2.waitKey(0) & 0xff
-        _index = 0
+        # wait for key infinitely
+        k = cv2.waitKey(0) & 0xff
+        index = 0
 
         # parse key
-        if _k == 27:  # ESC
+        if k == 27:  # ESC
             break
-        elif _k == 83 or _k == 100:  # right, d
-            _index = 1
-        elif _k == 81 or _k == 97:  # left, a
-            _index = -1
-        elif _k == 82 or _k == 119:  # up, w
-            _index = 10
-        elif _k == 84 or _k == 115:  # down, s
-            _index = -10
-        elif _k == 80:  # start
-            _index = - __MAXSAVED
-        elif _k == 87:  # end
-            _index = __MAXSAVED
-        elif _k == 32:  # space
+        elif k == 83 or k == 100:  # right, d
+            index = 1
+        elif k == 81 or k == 97:  # left, a
+            index = -1
+        elif k == 82 or k == 119:  # up, w
+            index = 10
+        elif k == 84 or k == 115:  # down, s
+            index = -10
+        elif k == 80:  # start
+            index = - __MAXSAVED
+        elif k == 87:  # end
+            index = __MAXSAVED
+        elif k == 32:  # space
             __step = True
             break
-        elif _k != 255:  # other
-            print "pressed", _k
+        elif k != 255:  # other
+            print "pressed", k
 
         # update displays
-        for _winname in __frames:
-            __indexes[_winname] = sorted((0, __indexes[_winname] + _index, len(__frames[_winname]) - 1))[1]  # instead of min(a,max(b,c)) because cv2 redefines min and max
-            cv2.imshow(_winname, __frames[_winname][__indexes[_winname]])
+        for winname in __frames:
+            indexes[winname] = sorted((0, indexes[winname] - index, len(__frames[winname]) - 1))[1]  # instead of min(a,max(b,c)) because cv2 redefines min and max
+            cv2.imshow(winname, __frames[winname][indexes[winname]])
 
-    # restore titles
-    for _winname in __frames:
-        cv2.setWindowTitle(_winname, _winname)
+    # restore titles and latest images
+    for winname in __frames:
+        cv2.setWindowTitle(winname, winname)
+        if indexes[winname] != 0:
+            cv2.imshow(winname, __frames[winname][0])
 
 
 if __name__ == "__main__":
