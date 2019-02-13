@@ -2,7 +2,7 @@
 import epfl_scripts.Utilities.cv2Visor as cv2
 from epfl_scripts.Utilities.colorUtility import getColors, blendColors
 from epfl_scripts.Utilities.geometry_utils import Bbox, f_area, f_intersection
-from epfl_scripts.groundTruthParser import getGroundTruth, getVideo
+from epfl_scripts.groundTruthParser import getGroundTruth, getVideo, getDatasets
 
 OCCLUSION_IOU = 0.85  # IOU to detect as occlusion (iff iou(intersection, bbox)>= param)
 CROSS_FRAMES_BEFORE = 5  # frames required before cross
@@ -217,6 +217,10 @@ def evalOne(dataset, display):
         success, image = vidcap.read()
         frame += 1
 
+    # end
+    if display:
+        cv2.destroyWindow(dataset)
+
     # print detections
     crossDetector.endVideo(frame)
     for occlusion in crossDetector.getCrosses():
@@ -224,4 +228,6 @@ def evalOne(dataset, display):
 
 
 if __name__ == '__main__':
-    evalOne('Laboratory/6p-c0', True)
+    # evalOne('Laboratory/6p-c0', True)
+    for dataset in getDatasets():
+        evalOne(dataset, True)
