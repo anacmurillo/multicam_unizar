@@ -8,6 +8,24 @@ OCCLUSION_IOU = 0.85  # IOU to detect as occlusion (iff iou(intersection, bbox)>
 CROSS_FRAMES_BEFORE = 5  # frames required before cross
 CROSS_FRAMES_DURING = 5  # frames required during cross
 CROSS_FRAMES_AFTER = 5  # frames required after cross
+CROSS_FRAMES_HOLE = 1  # frames between same detections to consider them the same
+
+
+class Occlusion:
+    def __init__(self, idFront, idBack, dataset):
+        self.idFront = idFront
+        self.idBack = idBack
+
+        self.dataset = dataset
+
+    def sameIds(self, other):
+        return len({self.idFront, self.idBack, other.idFront, other.idBack}) == 2
+
+    def differentIds(self, other):
+        return len({self.idFront, self.idBack, other.idFront, other.idBack}) == 4
+
+    def __str__(self):
+        return "Occlusion in {}: {} is behind {}".format(self.dataset, self.idFront, self.idBack)
 
 
 class Cross:
@@ -18,9 +36,8 @@ class Cross:
     STATE_COMPUTING = "COMPUTING"
     STATE_END = "END"
 
-    def __init__(self, (idFront, idBack), frameBefore, frameCurrent):
-        self.idFront = idFront
-        self.idBack = idBack
+    def __init__(self, occlusion, frameBefore, frameCurrent):
+        self.occlusion = occlusion
 
         self.state = self.STATE_COMPUTING if frameCurrent - frameBefore >= CROSS_FRAMES_BEFORE else self.STATE_INVALID
         self.frameBefore = frameBefore
@@ -28,19 +45,19 @@ class Cross:
         self.frameAfter = frameCurrent + 1
         self.frameEnd = -1
 
-    def updateFrame(self, (idFront, idBack), frame):
+    def updateFrame(self, occlusion, frame):
         # check non update state
         if self.state != self.STATE_COMPUTING:
             # nothing else is needed, not used
             return False
 
         # check other ids
-        if len({self.idFront, self.idBack, idFront, idBack}) == 4:
+        if occlusion.differentIds(self.occlusion):
             # other ids, just omit
             return False
 
         # check one more 'during'
-        if idFront == self.idFront and idBack == self.idBack and self.frameAfter >= frame:
+        if occlusion.sameIds(self.occlusion) and self.frameAfter + CROSS_FRAMES_HOLE >= frame:
             # next frame, update one more
             self.frameAfter = frame + 1
             return True
@@ -69,7 +86,7 @@ class Cross:
 
     def __str__(self):
         return "Cross: {} behind {} :: {}-{}-{}-{} [{}]".format(
-            self.idBack, self.idFront,
+            self.occlusion.idBack, self.occlusion.idFront,
             self.frameBefore, self.frameDuring, self.frameAfter, self.frameEnd,
             self.state)
 
@@ -84,25 +101,25 @@ class CrossDetector:
         self.lastSaw = {}
 
     def addOcclusions(self, occlusions, frame):
-        for (idF, idB, d) in occlusions:
+        for occlusion in occlusions:
             # update all current crosses
             used = False
             for cross in self.crosses:
                 # update crosses
-                used |= cross.updateFrame((idF, idB), frame)
+                used |= cross.updateFrame(occlusion, frame)
             if not used:
                 # occlusion not used, add as new possible cross
                 last = 0
-                if idF in self.lastSaw:
-                    last = max(last, self.lastSaw[idF])
-                if idB in self.lastSaw:
-                    last = max(last, self.lastSaw[idB])
-                self.crosses.append(Cross((idF, idB), last, frame))
+                if occlusion.idFront in self.lastSaw:
+                    last = max(last, self.lastSaw[occlusion.idFront])
+                if occlusion.idBack in self.lastSaw:
+                    last = max(last, self.lastSaw[occlusion.idBack])
+                self.crosses.append(Cross(occlusion, last, frame))
 
-        for (idF, idB, d) in occlusions:
+        for occlusion in occlusions:
             # update framesNotCross
-            self.lastSaw[idF] = frame + 1
-            self.lastSaw[idB] = frame + 1
+            self.lastSaw[occlusion.idFront] = frame + 1
+            self.lastSaw[occlusion.idBack] = frame + 1
 
         for cross in self.crosses:
             print "Current :", cross
@@ -163,7 +180,7 @@ def findOcclusions(track_ids, groupDataset, bboxes):
                 myiou = f_area(f_intersection(bbox1, bbox2)) / area2
 
                 if myiou > OCCLUSION_IOU:
-                    occlusions.add((id1, id2, dataset))
+                    occlusions.add(Occlusion(id1, id2, dataset))
     return occlusions
 
 
@@ -223,8 +240,8 @@ def evalOne(groupDataset, display):
 
         # find occlusions
         occlusions = findOcclusions(track_ids, groupDataset, {dataset: data[dataset][frame] for dataset in groupDataset})
-        for (idA, idB, d) in occlusions:
-            print "En la camara ", d, "La persona ", idB, "pasa por detras de", idA
+        for occlusion in occlusions:
+            print occlusion
 
         crossDetector.addOcclusions(occlusions, frame)
 
@@ -241,18 +258,18 @@ def evalOne(groupDataset, display):
                 cv2.putText(image, str(frame), (0, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (1, 1, 1), 1)
 
                 # draw occlusions
-                for (idA, idB, d) in occlusions:
-                    if d != dataset:
+                for occlusion in occlusions:
+                    if occlusion.dataset != dataset:
                         continue
-                    bboxA, found = parseData(data[dataset][frame][idA])
-                    bboxB, found = parseData(data[dataset][frame][idB])
+                    bboxA, found = parseData(data[dataset][frame][occlusion.idFront])
+                    bboxB, found = parseData(data[dataset][frame][occlusion.idBack ])
 
                     # draw rectangles wider
-                    cv2.rectangle(image, (bboxA.xmin, bboxA.ymin), (bboxA.xmax, bboxA.ymax), colors[idA], 2)
-                    cv2.rectangle(image, (bboxB.xmin, bboxB.ymin), (bboxB.xmax, bboxB.ymax), colors[idB], 2)
+                    cv2.rectangle(image, (bboxA.xmin, bboxA.ymin), (bboxA.xmax, bboxA.ymax), colors[occlusion.idFront], 2)
+                    cv2.rectangle(image, (bboxB.xmin, bboxB.ymin), (bboxB.xmax, bboxB.ymax), colors[occlusion.idBack ], 2)
 
                     # connect rectangles
-                    color = blendColors(colors[idA], colors[idB])
+                    color = blendColors(colors[occlusion.idFront], colors[occlusion.idBack])
                     cv2.line(image, (bboxA.xmin, bboxA.ymin), (bboxB.xmin, bboxB.ymin), color, 2)
                     cv2.line(image, (bboxA.xmin, bboxA.ymax), (bboxB.xmin, bboxB.ymax), color, 2)
                     cv2.line(image, (bboxA.xmax, bboxA.ymin), (bboxB.xmax, bboxB.ymin), color, 2)
@@ -279,8 +296,8 @@ def evalOne(groupDataset, display):
 
     # print detections
     crossDetector.endVideo(frame)
-    for occlusion in crossDetector.getCrosses():
-        print "Found Occlusion", occlusion
+    for cross in crossDetector.getCrosses():
+        print "Found : ", cross
 
 
 if __name__ == '__main__':
