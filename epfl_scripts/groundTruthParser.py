@@ -37,7 +37,7 @@ def getDatasets():
     return datasets
 
 
-def getGroupedDatasets():
+def getGroupedDatasets(removeProblematic=True):
     """
     Returns list of names that can be used to extract groundtruth, grouped based on cameras from the same dataset
     :return: [["a/b","a/c",...],["b/a","b/b",...],...]
@@ -48,8 +48,9 @@ def getGroupedDatasets():
         multi = single[0:single.rfind('-')]
         multis.setdefault(multi, []).append(single)
 
-    del multis['Basketball/match5']
-    del multis['Passageway/passageway1']
+    if removeProblematic:
+        del multis['Basketball/match5']
+        del multis['Passageway/passageway1']
     return multis
 
 

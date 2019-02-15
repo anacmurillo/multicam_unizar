@@ -18,11 +18,14 @@ class Occlusion:
 
         self.dataset = dataset
 
-    def sameIds(self, other):
-        return len({self.idFront, self.idBack, other.idFront, other.idBack}) == 2
+    def getIds(self):
+        return sorted((self.idFront, self.idBack))
 
-    def differentIds(self, other):
-        return len({self.idFront, self.idBack, other.idFront, other.idBack}) == 4
+    def sameIds(self, idA, idB):
+        return len({self.idFront, self.idBack, idA, idB}) == 2
+
+    def differentIds(self, idA, idB):
+        return len({self.idFront, self.idBack, idA, idB}) == 4
 
     def __str__(self):
         return "Occlusion in {}: {} is behind {}".format(self.dataset, self.idFront, self.idBack)
@@ -37,7 +40,7 @@ class Cross:
     STATE_END = "END"
 
     def __init__(self, occlusion, frameBefore, frameCurrent):
-        self.occlusion = occlusion
+        self.idA, self.idB = occlusion.getIds()
 
         self.state = self.STATE_COMPUTING if frameCurrent - frameBefore >= CROSS_FRAMES_BEFORE else self.STATE_INVALID
         self.frameBefore = frameBefore
@@ -52,12 +55,12 @@ class Cross:
             return False
 
         # check other ids
-        if occlusion.differentIds(self.occlusion):
+        if occlusion.differentIds(self.idA, self.idB):
             # other ids, just omit
             return False
 
         # check one more 'during'
-        if occlusion.sameIds(self.occlusion) and self.frameAfter + CROSS_FRAMES_HOLE >= frame:
+        if occlusion.sameIds(self.idA, self.idB) and self.frameAfter + CROSS_FRAMES_HOLE >= frame:
             # next frame, update one more
             self.frameAfter = frame + 1
             return True
@@ -85,8 +88,8 @@ class Cross:
         return self.state != self.STATE_INVALID
 
     def __str__(self):
-        return "Cross: {} behind {} :: {}-{}-{}-{} [{}]".format(
-            self.occlusion.idBack, self.occlusion.idFront,
+        return "Cross between {} and {} :: {}-{}-{}-{} [{}]".format(
+            self.idA, self.idB,
             self.frameBefore, self.frameDuring, self.frameAfter, self.frameEnd,
             self.state)
 
@@ -184,7 +187,7 @@ def findOcclusions(track_ids, groupDataset, bboxes):
     return occlusions
 
 
-def evalOne(groupDataset, display):
+def evalOne(groupedDataset, display):
     """
     Finds the cross on this video
     :param dataset: the dataset filename
@@ -194,13 +197,13 @@ def evalOne(groupDataset, display):
     track_ids = None
 
     # get groudtruths
-    for dataset in groupDataset:
+    for dataset in groupedDataset:
         _track_ids, _data = getGroundTruth(dataset)
 
         if track_ids is None:
             track_ids = _track_ids
         elif track_ids != _track_ids:
-            print "Invalid number of persons in different cameras!!!", track_ids, _track_ids
+            print "Invalid number of persons in different cameras!!!", track_ids, _track_ids, groupedDataset[0], dataset
             return
 
         data[dataset] = _data
@@ -217,7 +220,7 @@ def evalOne(groupDataset, display):
     videos = {}
     images = {}
     successAll = True
-    for dataset in groupDataset:
+    for dataset in groupedDataset:
         video = getVideo(dataset)
         videos[dataset] = video
 
@@ -239,14 +242,14 @@ def evalOne(groupDataset, display):
         print frame
 
         # find occlusions
-        occlusions = findOcclusions(track_ids, groupDataset, {dataset: data[dataset][frame] for dataset in groupDataset})
+        occlusions = findOcclusions(track_ids, groupedDataset, {dataset: data[dataset][frame] for dataset in groupedDataset})
         for occlusion in occlusions:
             print occlusion
 
         crossDetector.addOcclusions(occlusions, frame)
 
         if display:
-            for dataset in groupDataset:
+            for dataset in groupedDataset:
                 image = images[dataset]
 
                 # draw rectangles
@@ -262,11 +265,11 @@ def evalOne(groupDataset, display):
                     if occlusion.dataset != dataset:
                         continue
                     bboxA, found = parseData(data[dataset][frame][occlusion.idFront])
-                    bboxB, found = parseData(data[dataset][frame][occlusion.idBack ])
+                    bboxB, found = parseData(data[dataset][frame][occlusion.idBack])
 
                     # draw rectangles wider
                     cv2.rectangle(image, (bboxA.xmin, bboxA.ymin), (bboxA.xmax, bboxA.ymax), colors[occlusion.idFront], 2)
-                    cv2.rectangle(image, (bboxB.xmin, bboxB.ymin), (bboxB.xmax, bboxB.ymax), colors[occlusion.idBack ], 2)
+                    cv2.rectangle(image, (bboxB.xmin, bboxB.ymin), (bboxB.xmax, bboxB.ymax), colors[occlusion.idBack], 2)
 
                     # connect rectangles
                     color = blendColors(colors[occlusion.idFront], colors[occlusion.idBack])
@@ -283,7 +286,7 @@ def evalOne(groupDataset, display):
                 break
 
         # read new frames
-        for dataset in groupDataset:
+        for dataset in groupedDataset:
             # Read a new frame
             success, images[dataset] = videos[dataset].read()
             successAll = successAll and success
@@ -291,17 +294,32 @@ def evalOne(groupDataset, display):
 
     # end
     if display:
-        for dataset in groupDataset:
+        for dataset in groupedDataset:
             cv2.destroyWindow(dataset)
 
-    # print detections
-    crossDetector.endVideo(frame)
-    for cross in crossDetector.getCrosses():
-        print "Found : ", cross
+        # print detections
+        crossDetector.endVideo(frame)
+        for cross in crossDetector.getCrosses():
+            print "Found : ", cross
+
+    return crossDetector.getCrosses()
+
+
+def saveCrosses(groupedDatasets, filename):
+    with open(filename, "w") as file_out:
+        file_out.write("idFront,idBack,frameBefore,frameDuring,frameAfter,frameEnd\n")
+        for groupedDataset in groupedDatasets:
+            crosses = evalOne(groupedDatasets[groupedDataset], False)
+            if crosses is not None:
+                file_out.write("[{}]\n".format(groupedDataset))
+                for cross in crosses:
+                    file_out.write(",".join(map(str, [cross.idA, cross.idB, cross.frameBefore, cross.frameDuring, cross.frameAfter, cross.frameEnd])) + "\n")
 
 
 if __name__ == '__main__':
     # evalOne(['Laboratory/6p-c0'], True)
-    evalOne(getGroupedDatasets()['Laboratory/6p'], True)
+    # evalOne(getGroupedDatasets()['Laboratory/6p'], True)
+    #saveCrosses({'Laboratory/6p': getGroupedDatasets()['Laboratory/6p']}, "output.txt")
+    saveCrosses(getGroupedDatasets(False), "output.txt")
     # for dataset in getGrDatasets():
     #    evalOne(dataset, True)
