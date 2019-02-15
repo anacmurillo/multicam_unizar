@@ -4,7 +4,7 @@ from epfl_scripts.Utilities.colorUtility import getColors, blendColors
 from epfl_scripts.Utilities.geometry_utils import Bbox, f_area, f_intersection
 from epfl_scripts.groundTruthParser import getGroundTruth, getVideo, getGroupedDatasets
 
-OCCLUSION_IOU = 0.85  # IOU to detect as occlusion (iff iou(intersection, bbox)>= param)
+OCCLUSION_IOU = 0.75  # IOU to detect as occlusion (iff iou(intersection, bbox)>= param)
 CROSS_FRAMES_BEFORE = 5  # frames required before cross
 CROSS_FRAMES_DURING = 5  # frames required during cross
 CROSS_FRAMES_AFTER = 5  # frames required after cross
@@ -48,6 +48,14 @@ class Cross:
         self.frameAfter = frameCurrent + 1
         self.frameEnd = -1
 
+    def updateNotVisible(self, id, frame):
+        if id not in (self.idA, self.idB):
+            # not our ids
+            return
+
+        # our ids, cancel
+        self._cancel(frame)
+
     def updateFrame(self, occlusion, frame):
         # check non update state
         if self.state != self.STATE_COMPUTING:
@@ -66,16 +74,13 @@ class Cross:
             return True
 
         # invalid, end of detection
-        if self.frameAfter - self.frameDuring < CROSS_FRAMES_DURING or frame - self.frameAfter < CROSS_FRAMES_AFTER:
-            # duration too short, invalid
-            self.state = self.STATE_INVALID
-        else:
-            # duration valid, this is the end
-            self.state = self.STATE_END
-            self.frameEnd = frame
+        self._cancel(frame)
         return False
 
     def endVideo(self, frame):
+        self._cancel(frame)
+
+    def _cancel(self, frame):
         if self.frameAfter - self.frameDuring < CROSS_FRAMES_DURING or frame - self.frameAfter < CROSS_FRAMES_AFTER:
             # duration too short, invalid
             self.state = self.STATE_INVALID
@@ -100,10 +105,31 @@ class CrossDetector:
     """
 
     def __init__(self):
-        self.crosses = []
-        self.lastSaw = {}
+        self.crosses = []  # list of current valid crosses
+        self.lastValid = {}  # for each id, last valid (non occluded) frame, None if not visible
 
-    def addOcclusions(self, occlusions, frame):
+    def updateVisible(self, visible, frame):
+        """
+        Must be called BEFORE updateOcclusions
+        """
+        # remove not visible
+        for id in self.lastValid.keys():
+            if id not in visible:
+                # not visible now
+                del self.lastValid[id]
+                for cross in self.crosses:
+                    cross.updateNotVisible(id, frame)
+
+        # update visible
+        for id in visible:
+            if id not in self.lastValid:
+                # visible now
+                self.lastValid[id] = frame
+
+    def updateOcclusions(self, occlusions, frame):
+        """
+        must be called AFTER updateVisible
+        """
         for occlusion in occlusions:
             # update all current crosses
             used = False
@@ -112,17 +138,13 @@ class CrossDetector:
                 used |= cross.updateFrame(occlusion, frame)
             if not used:
                 # occlusion not used, add as new possible cross
-                last = 0
-                if occlusion.idFront in self.lastSaw:
-                    last = max(last, self.lastSaw[occlusion.idFront])
-                if occlusion.idBack in self.lastSaw:
-                    last = max(last, self.lastSaw[occlusion.idBack])
+                last = max(self.lastValid[occlusion.idBack], self.lastValid[occlusion.idFront])
                 self.crosses.append(Cross(occlusion, last, frame))
 
         for occlusion in occlusions:
-            # update framesNotCross
-            self.lastSaw[occlusion.idFront] = frame + 1
-            self.lastSaw[occlusion.idBack] = frame + 1
+            # update lastValid
+            self.lastValid[occlusion.idFront] = frame + 1
+            self.lastValid[occlusion.idBack] = frame + 1
 
         for cross in self.crosses:
             print "Current :", cross
@@ -148,7 +170,7 @@ def parseData((xmin, ymin, xmax, ymax, lost, occluded, generated, label)):
     return Bbox.XmYmXMYM(xmin, ymin, xmax, ymax), not lost
 
 
-def findOcclusions(track_ids, groupDataset, bboxes):
+def findOcclusionsAndVisible(track_ids, groupDataset, bboxes):
     """
     finds pairs of ids where id2 'crossed behind' id1
     :param track_ids: list of all possible ids
@@ -157,6 +179,7 @@ def findOcclusions(track_ids, groupDataset, bboxes):
     :return: list of pairs (id1, id2, d) meaning 'id2 is behind id1 in dataset d'
     """
     occlusions = set()
+    visible = set()
 
     for dataset in groupDataset:
         for id1 in track_ids:
@@ -164,6 +187,7 @@ def findOcclusions(track_ids, groupDataset, bboxes):
             if not valid1:
                 continue
             area1 = f_area(bbox1)
+            visible.add(id1)  # added if visible
 
             for id2 in track_ids:
                 if id2 <= id1:
@@ -187,7 +211,7 @@ def findOcclusions(track_ids, groupDataset, bboxes):
 
                 if myiou > OCCLUSION_IOU:
                     occlusions.add(Occlusion(idF, idB, dataset))
-    return occlusions
+    return occlusions, visible
 
 
 def evalOne(groupedDataset, display):
@@ -245,11 +269,12 @@ def evalOne(groupedDataset, display):
         print frame
 
         # find occlusions
-        occlusions = findOcclusions(track_ids, groupedDataset, {dataset: data[dataset][frame] for dataset in groupedDataset})
+        occlusions, visible = findOcclusionsAndVisible(track_ids, groupedDataset, {dataset: data[dataset][frame] for dataset in groupedDataset})
         for occlusion in occlusions:
             print occlusion
 
-        crossDetector.addOcclusions(occlusions, frame)
+        crossDetector.updateVisible(visible, frame)
+        crossDetector.updateOcclusions(occlusions, frame)
 
         if display:
             for dataset in groupedDataset:
@@ -310,7 +335,7 @@ def evalOne(groupedDataset, display):
 
 def saveCrosses(groupedDatasets, filename):
     with open(filename, "w") as file_out:
-        file_out.write("idFront,idBack,frameBefore,frameDuring,frameAfter,frameEnd\n")
+        file_out.write("idA,idB,frameBefore,frameDuring,frameAfter,frameEnd\n")  # manual input for readability
         for groupedDataset in groupedDatasets:
             crosses = evalOne(groupedDatasets[groupedDataset], False)
             if crosses is not None:
@@ -322,7 +347,7 @@ def saveCrosses(groupedDatasets, filename):
 if __name__ == '__main__':
     # evalOne(['Laboratory/6p-c0'], True)
     # evalOne(getGroupedDatasets()['Laboratory/6p'], True)
-    #saveCrosses({'Laboratory/6p': getGroupedDatasets()['Laboratory/6p']}, "output.txt")
+    # saveCrosses({'Laboratory/6p': getGroupedDatasets()['Laboratory/6p']}, "output.txt")
     saveCrosses(getGroupedDatasets(False), "output.txt")
     # for dataset in getGrDatasets():
     #    evalOne(dataset, True)
