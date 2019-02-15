@@ -10,60 +10,74 @@ CROSS_FRAMES_DURING = 5  # frames required during cross
 CROSS_FRAMES_AFTER = 5  # frames required after cross
 
 
-class CrossDetector:
-    class Cross:
-        """
-        Saves and updates the state of a cross, defined as 'frame before/while/after/end someone crosses behind another one'
-        """
-        STATE_INVALID = "INVALID"
-        STATE_COMPUTING = "COMPUTING"
-        STATE_END = "END"
+class Cross:
+    """
+    Saves and updates the state of a cross, defined as 'frame before/while/after/end someone crosses behind another one'
+    """
+    STATE_INVALID = "INVALID"
+    STATE_COMPUTING = "COMPUTING"
+    STATE_END = "END"
 
-        def __init__(self, (idFront, idBack), frameBefore, frameCurrent):
-            self.idFront = idFront
-            self.idBack = idBack
+    def __init__(self, (idFront, idBack), frameBefore, frameCurrent):
+        self.idFront = idFront
+        self.idBack = idBack
 
-            self.state = self.STATE_COMPUTING if frameCurrent - frameBefore >= CROSS_FRAMES_BEFORE else self.STATE_INVALID
-            self.frameBefore = frameBefore
-            self.frameDuring = frameCurrent
-            self.frameAfter = frameCurrent + 1
-            self.frameEnd = -1
+        self.state = self.STATE_COMPUTING if frameCurrent - frameBefore >= CROSS_FRAMES_BEFORE else self.STATE_INVALID
+        self.frameBefore = frameBefore
+        self.frameDuring = frameCurrent
+        self.frameAfter = frameCurrent + 1
+        self.frameEnd = -1
 
-        def updateFrame(self, (idFront, idBack), frame):
-            # check non update state
-            if self.state != self.STATE_COMPUTING:
-                # nothing else is needed, not used
-                return False
-
-            # check other ids
-            if len({self.idFront, self.idBack, idFront, idBack}) == 4:
-                # other ids, just omit
-                return False
-
-            # check one more 'during'
-            if idFront == self.idFront and idBack == self.idBack and self.frameAfter >= frame:
-                # next frame, update one more
-                self.frameAfter = frame + 1
-                return True
-
-            # invalid, end of detection
-            if self.frameAfter - self.frameDuring < CROSS_FRAMES_DURING or frame - self.frameAfter < CROSS_FRAMES_AFTER:
-                # duration too short, invalid
-                self.state = self.STATE_INVALID
-            else:
-                # duration valid, this is the end
-                self.state = self.STATE_END
-                self.frameEnd = frame
+    def updateFrame(self, (idFront, idBack), frame):
+        # check non update state
+        if self.state != self.STATE_COMPUTING:
+            # nothing else is needed, not used
             return False
 
-        def isValid(self):
-            return self.state != self.STATE_INVALID
+        # check other ids
+        if len({self.idFront, self.idBack, idFront, idBack}) == 4:
+            # other ids, just omit
+            return False
 
-        def __str__(self):
-            return "Cross: {} behind {} :: {}-{}-{}-{} [{}]".format(
-                self.idBack, self.idFront,
-                self.frameBefore, self.frameDuring, self.frameAfter, self.frameEnd,
-                self.state)
+        # check one more 'during'
+        if idFront == self.idFront and idBack == self.idBack and self.frameAfter >= frame:
+            # next frame, update one more
+            self.frameAfter = frame + 1
+            return True
+
+        # invalid, end of detection
+        if self.frameAfter - self.frameDuring < CROSS_FRAMES_DURING or frame - self.frameAfter < CROSS_FRAMES_AFTER:
+            # duration too short, invalid
+            self.state = self.STATE_INVALID
+        else:
+            # duration valid, this is the end
+            self.state = self.STATE_END
+            self.frameEnd = frame
+        return False
+
+    def endVideo(self, frame):
+        if self.frameAfter - self.frameDuring < CROSS_FRAMES_DURING or frame - self.frameAfter < CROSS_FRAMES_AFTER:
+            # duration too short, invalid
+            self.state = self.STATE_INVALID
+        else:
+            # duration valid, this is the end
+            self.state = self.STATE_END
+            self.frameEnd = frame
+
+    def isValid(self):
+        return self.state != self.STATE_INVALID
+
+    def __str__(self):
+        return "Cross: {} behind {} :: {}-{}-{}-{} [{}]".format(
+            self.idBack, self.idFront,
+            self.frameBefore, self.frameDuring, self.frameAfter, self.frameEnd,
+            self.state)
+
+
+class CrossDetector:
+    """
+    Keeps possible crosses
+    """
 
     def __init__(self):
         self.crosses = []
@@ -83,7 +97,7 @@ class CrossDetector:
                     last = max(last, self.lastSaw[idF])
                 if idB in self.lastSaw:
                     last = max(last, self.lastSaw[idB])
-                self.crosses.append(self.Cross((idF, idB), last, frame))
+                self.crosses.append(Cross((idF, idB), last, frame))
 
         for (idF, idB, d) in occlusions:
             # update framesNotCross
@@ -97,8 +111,9 @@ class CrossDetector:
         self.crosses = [c for c in self.crosses if c.isValid()]
 
     def endVideo(self, frame):
+        # finish all current
         for cross in self.crosses:
-            cross.updateFrame((-1, -1), frame)  # forces end of all detections
+            cross.endVideo(frame)
         self.crosses = [c for c in self.crosses if c.isValid()]
 
     def getCrosses(self):
@@ -269,7 +284,7 @@ def evalOne(groupDataset, display):
 
 
 if __name__ == '__main__':
-    #evalOne(['Laboratory/6p-c0'], True)
+    # evalOne(['Laboratory/6p-c0'], True)
     evalOne(getGroupedDatasets()['Laboratory/6p'], True)
-    #for dataset in getGrDatasets():
+    # for dataset in getGrDatasets():
     #    evalOne(dataset, True)
