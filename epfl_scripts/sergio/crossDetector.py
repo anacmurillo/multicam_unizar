@@ -160,30 +160,33 @@ def findOcclusions(track_ids, groupDataset, bboxes):
 
     for dataset in groupDataset:
         for id1 in track_ids:
+            bbox1, valid1 = parseData(bboxes[dataset][id1])
+            if not valid1:
+                continue
+            area1 = f_area(bbox1)
+
             for id2 in track_ids:
                 if id2 <= id1:
                     continue
 
-                bbox1, valid1 = parseData(bboxes[dataset][id1])
-                if not valid1:
-                    continue
                 bbox2, valid2 = parseData(bboxes[dataset][id2])
                 if not valid2:
                     continue
-
-                area1 = f_area(bbox1)
                 area2 = f_area(bbox2)
 
                 if area1 < area2:
-                    (id1, id2) = (id2, id1)
-                    (bbox1, bbox2) = (bbox2, bbox1)
-                    (area1, area2) = (area2, area1)
-                # test id2 behind id1
+                    # 1 is behind 2
+                    idF, idB = id2, id1
+                    areaMin = area1
+                else:
+                    # 2 is behind 1
+                    idF, idB = id1, id2
+                    areaMin = area2
 
-                myiou = f_area(f_intersection(bbox1, bbox2)) / area2
+                myiou = f_area(f_intersection(bbox1, bbox2)) / areaMin
 
                 if myiou > OCCLUSION_IOU:
-                    occlusions.add(Occlusion(id1, id2, dataset))
+                    occlusions.add(Occlusion(idF, idB, dataset))
     return occlusions
 
 
