@@ -162,12 +162,16 @@ class CrossDetector:
         return self.crosses
 
 
-def parseData((xmin, ymin, xmax, ymax, lost, occluded, generated, label)):
+def parseData(data, id):
     """
     converts data
     :return: the bbox and 'found'
     """
-    return Bbox.XmYmXMYM(xmin, ymin, xmax, ymax), not lost
+    if id in data:
+        xmin, ymin, xmax, ymax, lost, occluded, generated, label = data[id]
+        return Bbox.XmYmXMYM(xmin, ymin, xmax, ymax), not lost
+    else:
+        return None, False
 
 
 def findOcclusionsAndVisible(track_ids, groupDataset, bboxes):
@@ -183,7 +187,7 @@ def findOcclusionsAndVisible(track_ids, groupDataset, bboxes):
 
     for dataset in groupDataset:
         for id1 in track_ids:
-            bbox1, valid1 = parseData(bboxes[dataset][id1])
+            bbox1, valid1 = parseData(bboxes[dataset], id1)
             if not valid1:
                 continue
             area1 = f_area(bbox1)
@@ -193,7 +197,7 @@ def findOcclusionsAndVisible(track_ids, groupDataset, bboxes):
                 if id2 <= id1:
                     continue
 
-                bbox2, valid2 = parseData(bboxes[dataset][id2])
+                bbox2, valid2 = parseData(bboxes[dataset], id2)
                 if not valid2:
                     continue
                 area2 = f_area(bbox2)
@@ -221,18 +225,13 @@ def evalOne(groupedDataset, display):
     :param display:
     """
     data = {}  # data[dataset][frame][track_id]
-    track_ids = None
+    track_ids = set()
 
     # get groudtruths
     for dataset in groupedDataset:
         _track_ids, _data = getGroundTruth(dataset)
 
-        if track_ids is None:
-            track_ids = _track_ids
-        elif track_ids != _track_ids:
-            print "Invalid number of persons in different cameras!!!", track_ids, _track_ids, groupedDataset[0], dataset
-            return
-
+        track_ids.update(_track_ids)
         data[dataset] = _data
 
     # generate colors
@@ -270,8 +269,10 @@ def evalOne(groupedDataset, display):
 
         # find occlusions
         occlusions, visible = findOcclusionsAndVisible(track_ids, groupedDataset, {dataset: data[dataset][frame] for dataset in groupedDataset})
-        for occlusion in occlusions:
-            print occlusion
+
+        if display:
+            for occlusion in occlusions:
+                print occlusion
 
         crossDetector.updateVisible(visible, frame)
         crossDetector.updateOcclusions(occlusions, frame)
@@ -282,7 +283,7 @@ def evalOne(groupedDataset, display):
 
                 # draw rectangles
                 for id in track_ids:
-                    bbox, found = parseData(data[dataset][frame][id])
+                    bbox, found = parseData(data[dataset][frame], id)
                     if found:
                         cv2.rectangle(image, (bbox.xmin, bbox.ymin), (bbox.xmax, bbox.ymax), colors[id], 1)
                         cv2.putText(image, str(id), (bbox.xmin, bbox.ymin + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, colors[id], 1)
@@ -292,8 +293,8 @@ def evalOne(groupedDataset, display):
                 for occlusion in occlusions:
                     if occlusion.dataset != dataset:
                         continue
-                    bboxA, found = parseData(data[dataset][frame][occlusion.idFront])
-                    bboxB, found = parseData(data[dataset][frame][occlusion.idBack])
+                    bboxA, found = parseData(data[dataset][frame], occlusion.idFront)
+                    bboxB, found = parseData(data[dataset][frame], occlusion.idBack)
 
                     # draw rectangles wider
                     cv2.rectangle(image, (bboxA.xmin, bboxA.ymin), (bboxA.xmax, bboxA.ymax), colors[occlusion.idFront], 2)
@@ -348,6 +349,6 @@ if __name__ == '__main__':
     # evalOne(['Laboratory/6p-c0'], True)
     # evalOne(getGroupedDatasets()['Laboratory/6p'], True)
     # saveCrosses({'Laboratory/6p': getGroupedDatasets()['Laboratory/6p']}, "output.txt")
-    saveCrosses(getGroupedDatasets(False), "output.txt")
+    saveCrosses(getGroupedDatasets(False), "output5.txt")
     # for dataset in getGrDatasets():
     #    evalOne(dataset, True)

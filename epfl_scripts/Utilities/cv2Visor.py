@@ -31,18 +31,20 @@ __frames = {}
 __step = False
 
 
-def configure(max_saved, pause_key):
+def configure(max_saved=None, pause_key=None):
     """
     Configure the visor properties
     :param max_saved: maximum frames to save (for each window)
     :param pause_key: When pressed, the execution will be paused
     :return:
     """
-    global __MAXSAVED
-    __MAXSAVED = max_saved
+    if max_saved is not None:
+        global __MAXSAVED
+        __MAXSAVED = max_saved
 
-    global __PAUSEKEY
-    __PAUSEKEY = pause_key
+    if pause_key is not None:
+        global __PAUSEKEY
+        __PAUSEKEY = pause_key
 
 
 # Override
@@ -116,7 +118,7 @@ def __pauseDisplay():
     global __step
 
     # init
-    indexes = {}
+    indexes = {}  # 0 -> latest, len() -> oldest
     for winname in __frames:
         indexes[winname] = 0
 
@@ -157,6 +159,18 @@ def __pauseDisplay():
         for winname in __frames:
             indexes[winname] = sorted((0, indexes[winname] - index, len(__frames[winname]) - 1))[1]  # instead of min(a,max(b,c)) because cv2 redefines min and max
             cv2.imshow(winname, __frames[winname][indexes[winname]])
+
+    # fast forward to latest image at double speed
+    while sorted(indexes.values())[-1]:
+        for winname in __frames:
+            if indexes[winname] >= 0:
+                cv2.setWindowTitle(winname, "{} *FASTFORWARD*".format(winname))
+                cv2.imshow(winname, __frames[winname][indexes[winname]])
+                indexes[winname] -= 2  # for faster fastforward
+
+        if cv2.waitKey(1) & 0xff == 27:
+            # ESC, stop fastforward
+            break
 
     # restore titles and latest images
     for winname in __frames:

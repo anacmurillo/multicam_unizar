@@ -29,6 +29,7 @@ TRACKER_TYPES.append('KCF')  # good recognition, fast
 TRACKER_TYPES.append('CAMSHIFT')
 TRACKER_TYPES.append('MEANSHIFT')
 TRACKER_TYPES.append('MYTRACKER')
+TRACKER_TYPES.append('DEEP_SORT')
 
 
 def getTrackers():
@@ -78,6 +79,12 @@ def getTracker(tracker_type):
 
     if tracker_type == 'MYTRACKER':
         return MyTracker()
+
+    if tracker_type == 'DEEP_SORT':
+        sys.path.append("/media/datos/abel/deep_sort")
+        from tools.deep_sortTracker import DeepSortTracker
+
+        return DeepSortTracker()
 
     if int(cv2.__version__.split('.')[1]) < 3:
         tracker = cv2.Tracker_create(tracker_type)
@@ -195,4 +202,4 @@ def _evalTracker(dataset, tracker_type, display=True):
 
 if __name__ == '__main__':
     # evaluateTracker("Basketball/match5-c0")
-    _evalTracker("Laboratory/6p-c0", 'KCF')
+    _evalTracker("Laboratory/6p-c0", 'MEANSHIFT')

@@ -576,7 +576,8 @@ def graphGlobal(detector_values):
 if __name__ == '__main__':
 
     # show results
-    print evaluateMetricsGroup(getGroupedDatasets()['Laboratory/6p'], 'KCF', detector=5)
+    #print evaluateMetricsGroup(getGroupedDatasets()['Laboratory/6p'], 'KCF', detector=5)
+    print evaluateMetricsGroup(getGroupedDatasets()['Laboratory/6p'], 'DEEP_SORT', detector=1)
 
     # save snapshots, old
     # savecopy()

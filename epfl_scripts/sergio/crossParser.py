@@ -84,8 +84,14 @@ def displayCross(groupedDataset, cross):
             else:
                 imageSub = np.zeros(np.shape(image), np.uint8)  # black image
 
-            xminA, yminA, xmaxA, ymaxA, lostA, occluded, generated, label = groundTruth[dataset][frame][cross['idA']]
-            xminB, yminB, xmaxB, ymaxB, lostB, occluded, generated, label = groundTruth[dataset][frame][cross['idB']]
+            if cross['idA'] in groundTruth[dataset][frame]:
+                xminA, yminA, xmaxA, ymaxA, lostA, occluded, generated, label = groundTruth[dataset][frame][cross['idA']]
+            else:
+                lostA = True
+            if cross['idB'] in groundTruth[dataset][frame]:
+                xminB, yminB, xmaxB, ymaxB, lostB, occluded, generated, label = groundTruth[dataset][frame][cross['idB']]
+            else:
+                lostB = True
 
             if not lostA:
                 imageSub[yminA:ymaxA, xminA:xmaxA] = image[yminA:ymaxA, xminA:xmaxA]
@@ -136,8 +142,8 @@ def displayCross(groupedDataset, cross):
 
 if __name__ == '__main__':
     crosses = getCrosses('output.txt')
-    # groupedDatasets = getGroupedDatasets(False)
-    groupedDatasets = {'Laboratory/6p': getGroupedDatasets(False)['Laboratory/6p']}
+    groupedDatasets = getGroupedDatasets(False)
+    # groupedDatasets = {'Laboratory/6p': getGroupedDatasets(False)['Laboratory/6p']}
 
     for groupedDataset in groupedDatasets:
         if groupedDataset not in crosses:

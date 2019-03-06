@@ -414,7 +414,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
                         print "Error on tracker init"
 
                 # if 'advanced' tracker with bbox, update
-                if bbox is not None and tracker is not None and hasattr(tracker, 'redefine'):
+                elif bbox is not None and tracker is not None and hasattr(tracker, 'redefine'):
                     tracker.redefine(bbox.getAsXmYmWH())
 
         # Show bounding boxes
@@ -511,11 +511,12 @@ if __name__ == '__main__':
 
     # choose tracker
     # tracker = 'BOOSTING'  # slow good
-    tracker = 'KCF'  # fast bad
+    # tracker = 'KCF'  # fast bad
     # tracker = 'MYTRACKER'  # with redefine
+    tracker = 'DEEP_SORT'  # deep sort
 
     # choose parameter
-    detector_fired = 5
+    detector_fired = 1
 
     # run
     print dataset, tracker, detector_fired
