@@ -1,3 +1,9 @@
+from __future__ import print_function
+from __future__ import print_function
+from __future__ import print_function
+from __future__ import print_function
+from __future__ import print_function
+
 """
 Implementation of the algorithm. Main file
 """
@@ -160,22 +166,33 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
     centers = {}
     for id in ids:
         if id < 0: continue
+        # calculate center of groups
         centers[id] = findCenterOfGroup(predictions, id, cameras)
 
     for i, id in enumerate(ids[:]):
+        # for each id
+
         for camera in cameras:
+            # in each camera
+
+            # get prediction in 3d world (if available)
             prediction = predictions[camera][id]
             if prediction.bbox is None: continue
             point3d = to3dWorld(camera, prediction.bbox)
 
             if id >= 0:
+
                 # phase 4.1: find distance to group center, if far enough, remove
                 center, elements = centers[id]
                 if center is not None:
+                    # there is a group center
                     dist = f_euclidian(center, point3d)
                     if dist > FARTHEST_DIST:
+                        # we are far from the center
                         if prediction.newidCounter > FRAMES_CHANGEID and prediction.newid is not None:
-                            newid = getUnusedId(ids)
+                            # a lot of frames since we want to change, lets change
+
+                            newid = getUnusedId(ids) if prediction.newid == 'any' else prediction.newid
                             predictions[camera][newid] = prediction
                             predictions[camera][id] = Prediction()
                             prediction.newid = None
@@ -189,12 +206,16 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
                             id = newid
                         else:
                             if prediction.newid is not None:
+                                # we want to change, but still not time enough
                                 prediction.newidCounter += elements * 1. / len(cameras)
                             else:
+                                # first time we want to change, init
                                 prediction.newid = 'any'
                                 prediction.newidCounter = 0
                     else:
+                        # not far from the center
                         if prediction.newid is not None:
+                            # wanted to change, don't want now
                             prediction.newidCounter = 0
                             prediction.newid = None
 
@@ -237,6 +258,7 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
             if predictions[camera][id].framesLost < -FRAMES_PERSON:
                 if predictions[camera][id].newid >= 0:
                     newid = predictions[camera][id].newid
+                    assert(newid != 'any')
                 else:
                     newid = maxid + 1
                     maxid = newid
@@ -337,7 +359,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
 
         # Exit if video not opened.
         if not video.isOpened():
-            print "Could not open video for dataset", dataset
+            print("Could not open video for dataset", dataset)
             sys.exit()
 
         nframes = max(nframes, int(video.get(cv2.CAP_PROP_FRAME_COUNT)))
@@ -346,7 +368,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
         ok, frame = video.read()
         frames[dataset] = frame
         if not ok:
-            print "Cannot read video file"
+            print("Cannot read video file")
             sys.exit()
 
     # initialize detection set
@@ -411,7 +433,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
                         tracker.init(frames[dataset], bbox.getAsXmYmWH())
                         estimations[dataset][id].tracker = tracker
                     except BaseException:
-                        print "Error on tracker init"
+                        print("Error on tracker init")
 
                 # if 'advanced' tracker with bbox, update
                 elif bbox is not None and tracker is not None and hasattr(tracker, 'redefine'):
@@ -490,7 +512,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
         frame_index += 1
 
     # clean
-    print ""
+    print("")
     if display:
         cv2.destroyWindow(WIN_NAME)
         cv2.destroyWindow(WIN_NAME + "_overview")
@@ -519,5 +541,5 @@ if __name__ == '__main__':
     detector_fired = 1
 
     # run
-    print dataset, tracker, detector_fired
+    print(dataset, tracker, detector_fired)
     evalMultiTracker(dataset, tracker, True, detector_fired)
