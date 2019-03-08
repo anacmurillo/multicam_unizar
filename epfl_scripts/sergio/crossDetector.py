@@ -5,9 +5,9 @@ from epfl_scripts.Utilities.geometry_utils import Bbox, f_area, f_intersection
 from epfl_scripts.groundTruthParser import getGroundTruth, getVideo, getGroupedDatasets
 
 OCCLUSION_IOU = 0.75  # IOU to detect as occlusion (iff iou(intersection, bbox)>= param)
-CROSS_FRAMES_BEFORE = 5  # frames required before cross
+CROSS_FRAMES_BEFORE = 0  # frames required before cross
 CROSS_FRAMES_DURING = 5  # frames required during cross
-CROSS_FRAMES_AFTER = 5  # frames required after cross
+CROSS_FRAMES_AFTER = 0  # frames required after cross
 CROSS_FRAMES_HOLE = 1  # frames between same detections to consider them the same
 
 
@@ -78,7 +78,8 @@ class Cross:
         return False
 
     def endVideo(self, frame):
-        self._cancel(frame)
+        if self.state == self.STATE_COMPUTING:
+            self._cancel(frame)
 
     def _cancel(self, frame):
         if self.frameAfter - self.frameDuring < CROSS_FRAMES_DURING or frame - self.frameAfter < CROSS_FRAMES_AFTER:
@@ -145,9 +146,6 @@ class CrossDetector:
             # update lastValid
             self.lastValid[occlusion.idFront] = frame + 1
             self.lastValid[occlusion.idBack] = frame + 1
-
-        for cross in self.crosses:
-            print "Current :", cross
 
         # remove invalid
         self.crosses = [c for c in self.crosses if c.isValid()]
@@ -265,7 +263,7 @@ def evalOne(groupedDataset, display):
     crossDetector = CrossDetector()
 
     while successAll:
-        print frame
+        #print frame
 
         # find occlusions
         occlusions, visible = findOcclusionsAndVisible(track_ids, groupedDataset, {dataset: data[dataset][frame] for dataset in groupedDataset})
@@ -322,12 +320,12 @@ def evalOne(groupedDataset, display):
         frame += 1
 
     # end
+    crossDetector.endVideo(frame)
     if display:
         for dataset in groupedDataset:
             cv2.destroyWindow(dataset)
 
         # print detections
-        crossDetector.endVideo(frame)
         for cross in crossDetector.getCrosses():
             print "Found : ", cross
 
@@ -349,6 +347,6 @@ if __name__ == '__main__':
     # evalOne(['Laboratory/6p-c0'], True)
     # evalOne(getGroupedDatasets()['Laboratory/6p'], True)
     # saveCrosses({'Laboratory/6p': getGroupedDatasets()['Laboratory/6p']}, "output.txt")
-    saveCrosses(getGroupedDatasets(False), "output5.txt")
+    saveCrosses(getGroupedDatasets(False), "crosses0.txt")
     # for dataset in getGrDatasets():
     #    evalOne(dataset, True)

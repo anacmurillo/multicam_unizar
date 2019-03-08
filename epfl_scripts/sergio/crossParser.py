@@ -1,4 +1,9 @@
 # import cv2
+from __future__ import print_function
+from __future__ import print_function
+from __future__ import print_function
+from __future__ import print_function
+from __future__ import print_function
 import numpy as np
 
 import epfl_scripts.Utilities.cv2Visor as cv2
@@ -67,7 +72,7 @@ def displayCross(groupedDataset, cross):
 
         # Exit if video not opened.
         if not video.isOpened():
-            print "Could not open video for dataset", dataset
+            print("Could not open video for dataset", dataset)
             return
 
         # Read all frames.
@@ -77,7 +82,7 @@ def displayCross(groupedDataset, cross):
         for frame in range(cross['frameBefore'], cross['frameEnd']):
             success, image = video.read()
             if not success:
-                print "Error reading frame", frame, "from dataset", dataset
+                print("Error reading frame", frame, "from dataset", dataset)
 
             if cross['frameDuring'] <= frame < cross['frameAfter']:
                 imageSub = np.ones(np.shape(image), np.uint8) * 125  # grey image
@@ -132,7 +137,7 @@ def displayCross(groupedDataset, cross):
         elif k == 87:  # end
             index = total - 1
         elif k != 255:  # other
-            print "pressed", k
+            print("pressed", k)
 
         index = sorted([0, index, total - 1])[1]
 
@@ -141,17 +146,17 @@ def displayCross(groupedDataset, cross):
 
 
 if __name__ == '__main__':
-    crosses = getCrosses('output.txt')
+    crosses = getCrosses('crosses5.txt')
     groupedDatasets = getGroupedDatasets(False)
     # groupedDatasets = {'Laboratory/6p': getGroupedDatasets(False)['Laboratory/6p']}
 
     for groupedDataset in groupedDatasets:
         if groupedDataset not in crosses:
             # invalid
-            print groupedDataset, "info not available"
+            print(groupedDataset, "info not available")
             continue
 
         for cross in crosses[groupedDataset]:
             # display each one
-            print cross
+            print(cross)
             displayCross(groupedDatasets[groupedDataset], cross)
