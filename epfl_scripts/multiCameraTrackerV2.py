@@ -24,7 +24,7 @@ import epfl_scripts.Utilities.cv2Visor as cv2
 from epfl_scripts.Utilities.cache import cache_function
 from epfl_scripts.Utilities.colorUtility import getColors
 from epfl_scripts.Utilities.cv2Trackers import getTracker
-from epfl_scripts.Utilities.geometry_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox, f_average
+from epfl_scripts.Utilities.geometry_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox, f_average, f_subtract
 from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets, getCalibrationMatrix
 
 WIN_NAME = "Tracking"
@@ -41,6 +41,9 @@ FARTHEST_DIST = 50  # if an existing point is farther than the rest of the group
 DETECTION_DIST = 50  # if a new point is closer than this to an existing point, it is assigned the same id
 
 FRAMES_CHANGEID = 5  # if this number of frames passed wanting to change id, it is changed
+
+REDEFINED_PARAM = 1  # percent of the redefined bbox (1=new, 0=original)
+CENTERBBOX_PARAM = 1  # percent of the centering of the bboxes (1=center, 0=unchanged)
 
 
 def getUnusedId(group):
@@ -258,7 +261,6 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
             if predictions[camera][id].framesLost < -FRAMES_PERSON:
                 if predictions[camera][id].newid >= 0:
                     newid = predictions[camera][id].newid
-                    assert(newid != 'any')
                 else:
                     newid = maxid + 1
                     maxid = newid
@@ -270,7 +272,23 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
                 if newid not in ids:
                     ids.append(newid)
 
-    # internal phase 6: calculate dispersion of each id and remove empty ones
+    # phase 6: redefine bbox with centers if advanced trackers
+    if CENTERBBOX_PARAM > 0:
+        for id in ids:
+            if id < 0: continue
+            # calculate center of groups
+            center, _ = findCenterOfGroup(predictions, id, cameras)
+            for camera in cameras:
+                height, width, _colors = frames[camera].shape
+                bbox = predictions[camera][id].bbox
+                if hasattr(predictions[camera][id].tracker, 'redefine') and bbox is not None:
+                    p_center = from3dWorld(camera, center)
+                    if Bbox.XmYmXMYM(0, 0, width - 1, height - 1).contains(p_center) and bbox.ymax != height - 1:
+                        # exclude points outside camera
+                        p_bbox = bbox.getFeet()
+                        bbox.translate(f_subtract(p_center, p_bbox).getAsXY(), CENTERBBOX_PARAM)
+
+    # internal phase 7: calculate dispersion of each id and remove empty ones
     newids = []
     for id in ids:
         #  maxdist = 0
@@ -293,15 +311,12 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
             newids.append(id)
     ids = newids
 
-    # TODO: average point, move rectangles
-
     return predictions, ids, maxid
 
 
 def to3dWorld(camera, bbox):
     calib = getCalibrationMatrix(camera)
-    point = Point2D(bbox.xmin + bbox.width / 2., bbox.ymax)
-    return f_multiply(calib, point)
+    return f_multiply(calib, bbox.getFeet())
 
 
 def from3dWorld(camera, point):
@@ -322,8 +337,7 @@ def fixbbox(frame, bbox):
     height, width, colors = frame.shape
 
     # (0 <= roi.x && 0 <= roi.width && roi.x + roi.width <= m.cols && 0 <= roi.y && 0 <= roi.height && roi.y + roi.height <= m.rows)
-    if bbox.width <= 0 \
-            or bbox.height <= 0:
+    if not bbox.isValid():
         # bad bbox
         return None
 
@@ -396,7 +410,8 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
                     # get tracker prediction
                     try:
                         ok, bbox = tracker.update(frames[dataset])
-                    except Exception:
+                    except Exception as ex:
+                        print("Exception when updating tracker:", ex)
                         ok = False
                         bbox = None
                     if ok:
@@ -437,7 +452,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
 
                 # if 'advanced' tracker with bbox, update
                 elif bbox is not None and tracker is not None and hasattr(tracker, 'redefine'):
-                    tracker.redefine(bbox.getAsXmYmWH())
+                    tracker.redefine(bbox.getAsXmYmWH(), REDEFINED_PARAM)
 
         # Show bounding boxes
         for dataset in groupDataset:
@@ -483,11 +498,12 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
                     cv2.circle(frame, (int(px), int(py)), 1, color, thick)
 
                 # center
-                if id>= 0:
+                if id >= 0:
                     center, _ = findCenterOfGroup(estimations, id, groupDataset)
-                    x, y = center.getAsXY()
-                    cv2.drawMarker(frame, (int(x), int(y)), (0, 0, 0), 3, 4)
-                    cv2.drawMarker(frame, (int(x), int(y)), color, 0, 2)
+                    if center is not None:
+                        x, y = center.getAsXY()
+                        cv2.drawMarker(frame, (int(x), int(y)), (0, 0, 0), 3, 4)
+                        cv2.drawMarker(frame, (int(x), int(y)), color, 0, 2)
 
             cv2.putText(frame, str(frame_index), (0, 512), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
             cv2.imshow(WIN_NAME + "_overview", frame)
@@ -524,7 +540,6 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
 
 
 if __name__ == '__main__':
-
     # choose dataset
     # dataset = getGroupedDatasets()['Terrace/terrace1']
     # dataset = getGroupedDatasets()['Passageway/passageway1']

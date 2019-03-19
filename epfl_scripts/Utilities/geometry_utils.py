@@ -32,11 +32,14 @@ class Bbox:
     def getAsXmYmWH(self):
         return self.xmin, self.ymin, self.width, self.height
 
+    def getCenter(self):
+        return Point2D(self.xmin + self.width / 2., self.ymin + self.height / 2.)
+
+    def getFeet(self):
+        return Point2D(self.xmin + self.width / 2., self.ymax)
+
     def isValid(self):
-        return self.width >= 0 \
-               and self.width == self.xmax - self.xmin \
-               and self.height >= 0 \
-               and self.height == self.ymax - self.ymin
+        return self.width >= 0 and self.height >= 0
 
     def changeXmin(self, xmin):
         self.xmin = xmin
@@ -54,7 +57,13 @@ class Bbox:
         self.ymax = ymax
         self.height = self.ymax - self.ymin
 
-    def contains(self, point, margin=1):
+    def translate(self, (dx, dy), alpha=1):
+        self.xmin += int(dx*alpha)
+        self.xmax += int(dx*alpha)
+        self.ymin += int(dy*alpha)
+        self.ymax += int(dy*alpha)
+
+    def contains(self, point, margin=0):
         x, y = point.getAsXY()
         return self.xmin - margin <= x <= self.xmax + margin and self.ymin - margin <= y <= self.ymax + margin
 
@@ -111,13 +120,6 @@ def f_subtract(a, b):
     :return:
     """
     return Point2D(b.s * a.x - a.s * b.x, b.s * a.y - a.s * b.y, a.s * b.s)
-
-
-def f_center(bbox):
-    """
-    :return: center point of the :param bbox:
-    """
-    return Point2D(bbox.xmin + bbox.width / 2., bbox.ymin + bbox.height / 2.)
 
 
 def f_euclidian(a, b):

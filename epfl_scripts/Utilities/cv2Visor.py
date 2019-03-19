@@ -161,7 +161,7 @@ def __pauseDisplay():
             cv2.imshow(winname, __frames[winname][indexes[winname]])
 
     # fast forward to latest image at double speed
-    while sorted(indexes.values())[-1]:
+    while sorted(indexes.values())[-1] >= 0:
         for winname in __frames:
             if indexes[winname] >= 0:
                 cv2.setWindowTitle(winname, "{} *FASTFORWARD*".format(winname))

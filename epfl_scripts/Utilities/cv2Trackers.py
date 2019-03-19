@@ -202,4 +202,5 @@ def _evalTracker(dataset, tracker_type, display=True):
 
 if __name__ == '__main__':
     # evaluateTracker("Basketball/match5-c0")
-    _evalTracker("Laboratory/6p-c0", 'MEANSHIFT')
+    # _evalTracker("Laboratory/6p-c0", 'MEANSHIFT')
+    _evalTracker("Laboratory/6p-c0", 'DEEP_SORT')
