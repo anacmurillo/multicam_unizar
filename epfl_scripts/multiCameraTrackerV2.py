@@ -24,7 +24,7 @@ import epfl_scripts.Utilities.cv2Visor as cv2
 from epfl_scripts.Utilities.cache import cache_function
 from epfl_scripts.Utilities.colorUtility import getColors
 from epfl_scripts.Utilities.cv2Trackers import getTracker
-from epfl_scripts.Utilities.geometry_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox, f_average, f_subtract
+from epfl_scripts.Utilities.geometry_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox, f_average, f_subtract, f_area
 from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets, getCalibrationMatrix
 
 WIN_NAME = "Tracking"
@@ -43,7 +43,7 @@ DETECTION_DIST = 50  # if a new point is closer than this to an existing point, 
 FRAMES_CHANGEID = 5  # if this number of frames passed wanting to change id, it is changed
 
 REDEFINED_PARAM = 1  # percent of the redefined bbox (1=new, 0=original)
-CENTERBBOX_PARAM = 1  # percent of the centering of the bboxes (1=center, 0=unchanged)
+CENTERBBOX_PARAM = 0  # percent of the centering of the bboxes (1=center, 0=unchanged)
 
 
 def getUnusedId(group):
@@ -54,24 +54,104 @@ def getUnusedId(group):
 
 
 class Prediction:
-    def __init__(self, tracker=None, bbox=None, framesLost=0, trackerFound=False):
+    def __init__(self, tracker=None, bbox=None, framesLost=0, trackerFound=False, detectorFound=False):
         self.tracker = tracker
         self.bbox = bbox
         self.framesLost = framesLost
         self.trackerFound = trackerFound
+        self.detectorFound = detectorFound
 
         self.newid = None
         self.newidCounter = 0
+        self.newTags = set()
 
     def reset(self):
         self.__init__()
 
+    def setBbox(self, newBbox):
+        if newBbox != self.bbox:
+            # if not 'advanced' tracker, remove
+            if not hasattr(self.tracker, 'redefine'):
+                self.tracker = None
+            self.bbox = newBbox
 
-def findCenterOfGroup(predictions, id, cameras):
+    def updateLost(self, weight):
+        if self.bbox is not None and self.trackerFound and self.detectorFound:
+            framesLost = min(0, self.framesLost - 1)  # if negative, found
+        else:
+            framesLost = max(0, self.framesLost + 1)  # if positive, lost
+
+        if framesLost < FRAMES_LOST * weight:
+            self.framesLost = framesLost
+        else:
+            self.reset()
+
+    def wantToChange(self, tag, newId, counter):
+        self.newTags.add(tag)
+
+        same, newId = compareIds(self.newid, newId)
+        if same:
+            # we want to change again
+            if self.newidCounter > FRAMES_CHANGEID:
+                # a lot of frames since we want to change, lets change
+                self.newTags.clear()
+                self.newid = None
+                self.newidCounter = 0
+                self.framesLost = 0
+                return newId
+            else:
+                # we want to change, but still not time enough
+                self.newidCounter += counter
+                self.newid = newId
+                return None
+        else:
+            # first time we want to change, init
+            self.newid = newId
+            self.newidCounter = 0
+
+    def dontWantToChange(self, tag):
+        if tag in self.newTags:
+            # wanted to change, don't want now
+            self.newTags.remove(tag)
+            if len(self.newTags) == 0:
+                # no other thing want to change, stop
+                self.newidCounter = 0
+                self.newid = None
+
+
+def compareIds(id1, id2):
+    """
+    returns same, newid
+        if same==True, id1 and id2 can be considered the same and newid is that common id
+        else id1 and id2 are different, and newid=id2
+    """
+    if id1 is None and id2 is not None:
+        return False, id2
+    if id1 is not None and id2 is None:
+        return False, id2
+    if id1 is None and id2 is None:
+        return True, None
+    if id1 is 'any':
+        return True, id2
+    if id2 is 'any':
+        return True, id1
+    if id1 == id2:
+        return True, id1
+    return False, id2
+
+
+def findCenterOfGroup(predictions, id, cameras, frames):
     points = []
     weights = []
     for camera in cameras:
-        if predictions[camera][id].bbox is None: continue
+
+        # don't use if not a bbox
+        bbox = predictions[camera][id].bbox
+        if bbox is None: continue
+
+        # don't use if bbox touches borders (probably not a full person)
+        if not isInsideFrameB(bbox, frames[camera]): continue
+
         points.append(to3dWorld(camera, predictions[camera][id].bbox))
         weights.append(-predictions[camera][id].framesLost)
     return f_average(points, weights), len(points)
@@ -82,6 +162,28 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
     # for id in ids: etc
     # detector[camera] = [ (bbox), ... ]
     # for camera in cameras: etc
+
+    # phase 0: redefine bbox with centers if advanced trackers
+    if CENTERBBOX_PARAM > 0:
+        for id in ids:
+            if id < 0: continue
+            # calculate center of groups
+            center, _ = findCenterOfGroup(predictions, id, cameras, frames)
+            if center is None: continue
+
+            for camera in cameras:
+                bbox = predictions[camera][id].bbox
+                if bbox is not None:
+                    # there is a bbox, redefine
+                    p_center = from3dWorld(camera, center)
+                    p_bbox = bbox.getFeet()
+                    bbox.translate(f_subtract(p_center, p_bbox).getAsXY(), CENTERBBOX_PARAM)
+                    if not hasattr(predictions[camera][id].tracker, 'redefine'):
+                        predictions[camera][id].tracker = None
+                # else:
+                # there is no Detection, create new one
+                # error, can't create because we don't know the height/width!
+                # predictions[camera][id] = Prediction()
 
     detector_unused = {}
 
@@ -107,32 +209,38 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
                     # prediction found, remove from detections but keep for others
                     if bestBbox in detector_unused[camera]:
                         detector_unused[camera].remove(bestBbox)
-                    prediction.trackerFound = True
+                    prediction.detectorFound = True
                 else:
                     # not found, lost if detector was active
-                    prediction.trackerFound = False
+                    prediction.detectorFound = False
 
                 # update prediction
-                if bestBbox != prediction.bbox:
-                    # if not 'advanced' tracker, remove
-                    if not hasattr(prediction.tracker, 'redefine'):
-                        prediction.tracker = None
-                prediction.bbox = bestBbox
+                prediction.setBbox(bestBbox)
 
-    # phase 2: remove if lost enough times
     for camera in cameras:
-        for id in ids:
-            prediction = predictions[camera][id]
+        for id in ids[:]:
+            # phase 2.1: remove if lost enough times
+            predictions[camera][id].updateLost(2 if id >= 0 else 1)
 
-            if prediction.bbox is not None and prediction.trackerFound:
-                framesLost = min(0, prediction.framesLost - 1)
-            else:
-                framesLost = max(0, prediction.framesLost + 1)
+            bbox = predictions[camera][id].bbox
+            if bbox is None: continue
 
-            if framesLost < FRAMES_LOST * (2 if id >= 0 else 1):
-                prediction.framesLost = framesLost
-            else:
-                predictions[camera][id] = Prediction()
+            # phase 2.2: remove if empty area
+            if f_area(bbox) <= 0:
+                predictions[camera][id].reset()
+                continue
+
+            # phase 2.3: remove if same as other prediction
+            if id < 0:
+                for id2 in ids:
+                    if id2 <= id: continue
+                    # check for other ids (including persons)
+
+                    bbox2 = predictions[camera][id2].bbox
+                    if bbox2 is None: continue
+                    if f_iou(bbox, bbox2) > IOU_THRESHOLD:
+                        # same as other prediction, remove
+                        predictions[camera][id].reset()
 
     # phase 3: assign unused detections to new targets
     if detector is not None:
@@ -146,7 +254,7 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
 
                     valid = False
                     point2d = from3dWorld(camera2, point3d)
-                    if not isInsideFrame(point2d, frames[camera]): continue
+                    if not isInsideFrameP(point2d, frames[camera]): continue
                     for bbox2 in detector[camera2]:
                         if bbox2.contains(point2d, 10):
                             valid = True
@@ -160,7 +268,7 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
                 newid = getUnusedId(ids)
                 for camera2 in cameras:
                     if newid in predictions[camera2]: continue
-                    predictions[camera2][newid] = Prediction()
+                    predictions[camera2][newid] = Prediction()  # empty to avoid keyerror
                 predictions[camera][newid] = Prediction(bbox=bbox)
                 if newid not in ids:
                     ids.append(newid)
@@ -170,7 +278,7 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
     for id in ids:
         if id < 0: continue
         # calculate center of groups
-        centers[id] = findCenterOfGroup(predictions, id, cameras)
+        centers[id] = findCenterOfGroup(predictions, id, cameras, frames)
 
     for i, id in enumerate(ids[:]):
         # for each id
@@ -180,7 +288,7 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
 
             # get prediction in 3d world (if available)
             prediction = predictions[camera][id]
-            if prediction.bbox is None: continue
+            if prediction.bbox is None or not isInsideFrameB(prediction.bbox, frames[camera]): continue
             point3d = to3dWorld(camera, prediction.bbox)
 
             if id >= 0:
@@ -192,35 +300,22 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
                     dist = f_euclidian(center, point3d)
                     if dist > FARTHEST_DIST:
                         # we are far from the center
-                        if prediction.newidCounter > FRAMES_CHANGEID and prediction.newid is not None:
-                            # a lot of frames since we want to change, lets change
-
-                            newid = getUnusedId(ids) if prediction.newid == 'any' else prediction.newid
+                        newid = prediction.wantToChange('far', 'any', elements * 1. / len(cameras))
+                        if newid != id and newid is not None:
+                            # lets change
+                            if newid == 'any':
+                                newid = getUnusedId(ids)
                             predictions[camera][newid] = prediction
                             predictions[camera][id] = Prediction()
-                            prediction.newid = None
-                            prediction.newidCounter = 0
-                            prediction.framesLost = 0
                             for camera2 in cameras:
                                 if newid in predictions[camera2]: continue
                                 predictions[camera2][newid] = Prediction()
                             if newid not in ids:
                                 ids.append(newid)
                             id = newid
-                        else:
-                            if prediction.newid is not None:
-                                # we want to change, but still not time enough
-                                prediction.newidCounter += elements * 1. / len(cameras)
-                            else:
-                                # first time we want to change, init
-                                prediction.newid = 'any'
-                                prediction.newidCounter = 0
                     else:
                         # not far from the center
-                        if prediction.newid is not None:
-                            # wanted to change, don't want now
-                            prediction.newidCounter = 0
-                            prediction.newid = None
+                        prediction.dontWantToChange('far')
 
             # phase 4.2: find closest other point, if other id change to that
             bestId = None
@@ -237,31 +332,31 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
                         bestDist = dist
                         bestElements = elements
             if bestId is not None and bestId != id:
-                if prediction.newidCounter > FRAMES_CHANGEID and prediction.newid == bestId:
-                    predictions[camera][bestId] = predictions[camera][id]
+                # found a closer point
+                newid = prediction.wantToChange('closer', bestId, bestElements * 1. / len(cameras))
+                if newid != id and newid is not None:
+                    # lets change
+                    if newid == 'any':
+                        newid = getUnusedId(ids)
+                    predictions[camera][newid] = prediction
                     predictions[camera][id] = Prediction()
-                    prediction.newid = None
-                    prediction.newidCounter = 0
-                    id = bestId
-                else:
-                    if prediction.newid == bestId:
-                        prediction.newidCounter += bestElements * 1. / len(cameras)
-                    else:
-                        prediction.newid = bestId
-                        prediction.newidCounter = 0
+                    for camera2 in cameras:
+                        if newid in predictions[camera2]: continue
+                        predictions[camera2][newid] = Prediction()
+                    if newid not in ids:
+                        ids.append(newid)
+                    id = newid
             else:
-                if prediction.newid >= 0:
-                    prediction.newidCounter = 0
-                    prediction.newid = None
+                # there isn't a closer point
+                prediction.dontWantToChange('closer')
 
     # phase 5: set target as person if tracked continuously
     for id in ids[:]:
         if id >= 0: continue
         for camera in cameras:
             if predictions[camera][id].framesLost < -FRAMES_PERSON:
-                if predictions[camera][id].newid >= 0:
-                    newid = predictions[camera][id].newid
-                else:
+                newid = predictions[camera][id].newid
+                if newid is None or newid == 'any':
                     newid = maxid + 1
                     maxid = newid
                 predictions[camera][newid] = predictions[camera][id]
@@ -272,23 +367,7 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
                 if newid not in ids:
                     ids.append(newid)
 
-    # phase 6: redefine bbox with centers if advanced trackers
-    if CENTERBBOX_PARAM > 0:
-        for id in ids:
-            if id < 0: continue
-            # calculate center of groups
-            center, _ = findCenterOfGroup(predictions, id, cameras)
-            for camera in cameras:
-                height, width, _colors = frames[camera].shape
-                bbox = predictions[camera][id].bbox
-                if hasattr(predictions[camera][id].tracker, 'redefine') and bbox is not None:
-                    p_center = from3dWorld(camera, center)
-                    if Bbox.XmYmXMYM(0, 0, width - 1, height - 1).contains(p_center) and bbox.ymax != height - 1:
-                        # exclude points outside camera
-                        p_bbox = bbox.getFeet()
-                        bbox.translate(f_subtract(p_center, p_bbox).getAsXY(), CENTERBBOX_PARAM)
-
-    # internal phase 7: calculate dispersion of each id and remove empty ones
+    # internal phase 6: calculate dispersion of each id and remove empty ones
     newids = []
     for id in ids:
         #  maxdist = 0
@@ -324,11 +403,16 @@ def from3dWorld(camera, point):
     return f_multiply(invCalib, point)
 
 
-def isInsideFrame(point, frame):
+def isInsideFrameP(point, frame):
     x, y = point.getAsXY()
-    height, width, colors = frame.shape
+    height, width, _colors = frame.shape
 
     return 0 <= x < width and 0 <= y < height
+
+
+def isInsideFrameB(bbox, frame):
+    height, width, _colors = frame.shape
+    return bbox.xmin > 0 and bbox.xmax < width and bbox.ymax < height  # bbox.ymin > 0 not checked
 
 
 def fixbbox(frame, bbox):
@@ -350,13 +434,11 @@ def fixbbox(frame, bbox):
     if bbox.ymax > height:
         bbox.changeYmax(height)
 
-    return bbox if bbox.isValid() else None
+    return bbox
 
 
 @cache_function("evalMultiTracker_{0}_{1}_{DETECTOR_FIRED}", lambda _gd, _tt, display, DETECTOR_FIRED: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 8)
 def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5):
-    detector = {}  # detector[dataset][frame][index]
-
     # colors
     colors = getColors(12)
 
@@ -467,11 +549,12 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
                 # show bbox
                 if display:
                     label = "{0}:{1}:{2}".format(id, estimations[dataset][id].framesLost, estimations[dataset][id].newid)
-                    p1 = (int(bbox.xmin), int(bbox.ymin))
-                    p2 = (int(bbox.xmax), int(bbox.ymax))
+                    tl = (int(bbox.xmin), int(bbox.ymin))
+                    br = (int(bbox.xmax), int(bbox.ymax))
+                    cl = (int(bbox.xmin), int(bbox.ymin + bbox.height / 2))
                     color = colors[id % len(colors)] if id >= 0 else (255, 255, 255)
-                    cv2.rectangle(frames[dataset], p1, p2, color, 2 if id >= 0 else 1, 1)
-                    cv2.putText(frames[dataset], label, p1, cv2.FONT_HERSHEY_SIMPLEX, 0.4 if id >= 0 else 0.2, color, 1)
+                    cv2.rectangle(frames[dataset], tl, br, color, 2 if id >= 0 else 1, 1)
+                    cv2.putText(frames[dataset], label, cl, cv2.FONT_HERSHEY_SIMPLEX, 0.4 if id >= 0 else 0.35, color, 1)
 
         if display:
             # Display result
@@ -499,7 +582,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
 
                 # center
                 if id >= 0:
-                    center, _ = findCenterOfGroup(estimations, id, groupDataset)
+                    center, _ = findCenterOfGroup(estimations, id, groupDataset, frames)
                     if center is not None:
                         x, y = center.getAsXY()
                         cv2.drawMarker(frame, (int(x), int(y)), (0, 0, 0), 3, 4)
@@ -553,7 +636,7 @@ if __name__ == '__main__':
     tracker = 'DEEP_SORT'  # deep sort
 
     # choose parameter
-    detector_fired = 1
+    detector_fired = 10
 
     # run
     print(dataset, tracker, detector_fired)

@@ -36,7 +36,7 @@ class Bbox:
         return Point2D(self.xmin + self.width / 2., self.ymin + self.height / 2.)
 
     def getFeet(self):
-        return Point2D(self.xmin + self.width / 2., self.ymax)
+        return Point2D(self.xmin + self.width / 2., self.ymax - self.height*0.05)
 
     def isValid(self):
         return self.width >= 0 and self.height >= 0
