@@ -21,6 +21,8 @@ import numpy as np
 
 # import cv2
 import epfl_scripts.Utilities.cv2Visor as cv2
+cv2.configure(100)
+
 from epfl_scripts.Utilities.cache import cache_function
 from epfl_scripts.Utilities.colorUtility import getColors
 from epfl_scripts.Utilities.cv2Trackers import getTracker
@@ -29,7 +31,6 @@ from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets, getCali
 
 WIN_NAME = "Tracking"
 
-cv2.configure(100)
 
 IOU_THRESHOLD = 0.5  # minimum iou to assign a detection to a prediction
 FRAMES_LOST = 25  # maximum number of frames until the detection is removed
@@ -70,8 +71,10 @@ class Prediction:
 
     def setBbox(self, newBbox):
         if newBbox != self.bbox:
-            # if not 'advanced' tracker, remove
-            if not hasattr(self.tracker, 'redefine'):
+            if hasattr(self.tracker, 'redefine'):
+                self.tracker.redefine(newBbox.getAsXmYmWH(), REDEFINED_PARAM)
+            else:
+                # if not 'advanced' tracker, remove
                 self.tracker = None
             self.bbox = newBbox
 
@@ -140,7 +143,7 @@ def compareIds(id1, id2):
     return False, id2
 
 
-def findCenterOfGroup(predictions, id, cameras, frames):
+def findCenterOfGroup(predictions, id, cameras):
     points = []
     weights = []
     for camera in cameras:
@@ -148,9 +151,6 @@ def findCenterOfGroup(predictions, id, cameras, frames):
         # don't use if not a bbox
         bbox = predictions[camera][id].bbox
         if bbox is None: continue
-
-        # don't use if bbox touches borders (probably not a full person)
-        if not isInsideFrameB(bbox, frames[camera]): continue
 
         points.append(to3dWorld(camera, predictions[camera][id].bbox))
         weights.append(-predictions[camera][id].framesLost)
@@ -168,7 +168,7 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
         for id in ids:
             if id < 0: continue
             # calculate center of groups
-            center, _ = findCenterOfGroup(predictions, id, cameras, frames)
+            center, _ = findCenterOfGroup(predictions, id, cameras)
             if center is None: continue
 
             for camera in cameras:
@@ -195,12 +195,13 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
             for id in [x for x in ids if x >= 0] + [x for x in ids if x < 0]:
                 prediction = predictions[camera][id]
                 if prediction.bbox is None: continue
+                bbox = cropBbox(prediction.bbox, frames[camera])
 
                 # find closest detector to tracker
-                bestBbox = prediction.bbox
+                bestBbox = None
                 bestIoU = IOU_THRESHOLD
                 for detBbox in detector[camera]:
-                    iou = f_iou(prediction.bbox, detBbox)
+                    iou = f_iou(bbox, detBbox)
                     if iou > bestIoU:
                         bestIoU = iou
                         bestBbox = detBbox
@@ -210,12 +211,13 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
                     if bestBbox in detector_unused[camera]:
                         detector_unused[camera].remove(bestBbox)
                     prediction.detectorFound = True
+
+                    # update prediction
+                    prediction.setBbox(bestBbox)
+
                 else:
                     # not found, lost if detector was active
                     prediction.detectorFound = False
-
-                # update prediction
-                prediction.setBbox(bestBbox)
 
     for camera in cameras:
         for id in ids[:]:
@@ -278,7 +280,7 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
     for id in ids:
         if id < 0: continue
         # calculate center of groups
-        centers[id] = findCenterOfGroup(predictions, id, cameras, frames)
+        centers[id] = findCenterOfGroup(predictions, id, cameras)
 
     for i, id in enumerate(ids[:]):
         # for each id
@@ -288,7 +290,7 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
 
             # get prediction in 3d world (if available)
             prediction = predictions[camera][id]
-            if prediction.bbox is None or not isInsideFrameB(prediction.bbox, frames[camera]): continue
+            if prediction.bbox is None: continue
             point3d = to3dWorld(camera, prediction.bbox)
 
             if id >= 0:
@@ -415,26 +417,14 @@ def isInsideFrameB(bbox, frame):
     return bbox.xmin > 0 and bbox.xmax < width and bbox.ymax < height  # bbox.ymin > 0 not checked
 
 
-def fixbbox(frame, bbox):
+def cropBbox(bbox, frame):
     if bbox is None: return None
 
     height, width, colors = frame.shape
 
     # (0 <= roi.x && 0 <= roi.width && roi.x + roi.width <= m.cols && 0 <= roi.y && 0 <= roi.height && roi.y + roi.height <= m.rows)
-    if not bbox.isValid():
-        # bad bbox
-        return None
 
-    if bbox.xmin < 0:
-        bbox.changeXmin(0)
-    if bbox.ymin < 0:
-        bbox.changeYmin(0)
-    if bbox.xmax > width:
-        bbox.changeXmax(width)
-    if bbox.ymax > height:
-        bbox.changeYmax(height)
-
-    return bbox
+    return Bbox.XmYmXMYM(max(round(bbox.xmin), 0), max(round(bbox.ymin), 0), min(round(bbox.xmax), width), min(round(bbox.ymax), height))
 
 
 @cache_function("evalMultiTracker_{0}_{1}_{DETECTOR_FIRED}", lambda _gd, _tt, display, DETECTOR_FIRED: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 8)
@@ -517,8 +507,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
         # initialize new trackers
         for dataset in groupDataset:
             for id in ids:
-                bbox = fixbbox(frames[dataset], estimations[dataset][id].bbox)
-                estimations[dataset][id].bbox = bbox
+                bbox = estimations[dataset][id].bbox
 
                 tracker = estimations[dataset][id].tracker
 
@@ -529,18 +518,14 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
                     try:
                         tracker.init(frames[dataset], bbox.getAsXmYmWH())
                         estimations[dataset][id].tracker = tracker
-                    except BaseException:
-                        print("Error on tracker init")
-
-                # if 'advanced' tracker with bbox, update
-                elif bbox is not None and tracker is not None and hasattr(tracker, 'redefine'):
-                    tracker.redefine(bbox.getAsXmYmWH(), REDEFINED_PARAM)
+                    except BaseException as e:
+                        print("Error on tracker init", e)
 
         # Show bounding boxes
         for dataset in groupDataset:
             data_detected[dataset][frame_index] = {}
             for id in ids:
-                bbox = estimations[dataset][id].bbox
+                bbox = cropBbox(estimations[dataset][id].bbox, frames[dataset])
                 if bbox is None: continue
 
                 if id >= 0:
@@ -582,7 +567,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
 
                 # center
                 if id >= 0:
-                    center, _ = findCenterOfGroup(estimations, id, groupDataset, frames)
+                    center, _ = findCenterOfGroup(estimations, id, groupDataset)
                     if center is not None:
                         x, y = center.getAsXY()
                         cv2.drawMarker(frame, (int(x), int(y)), (0, 0, 0), 3, 4)
