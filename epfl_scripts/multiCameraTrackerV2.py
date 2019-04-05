@@ -356,8 +356,8 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
     for id in ids[:]:
         if id >= 0: continue
         for camera in cameras:
-            if predictions[camera][id].framesLost < -FRAMES_PERSON:
-                newid = predictions[camera][id].newid
+            newid = predictions[camera][id].newid
+            if predictions[camera][id].framesLost < -FRAMES_PERSON / (1. if newid is None else 2.):
                 if newid is None or newid == 'any':
                     newid = maxid + 1
                     maxid = newid
