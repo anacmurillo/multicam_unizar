@@ -152,7 +152,7 @@ def findCenterOfGroup(predictions, id, cameras):
         bbox = predictions[camera][id].bbox
         if bbox is None: continue
 
-        points.append(to3dWorld(camera, predictions[camera][id].bbox))
+        points.append(to3dPoint(camera, predictions[camera][id].bbox))
         weights.append(-predictions[camera][id].framesLost)
     return f_average(points, weights), len(points)
 
@@ -175,7 +175,7 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
                 bbox = predictions[camera][id].bbox
                 if bbox is not None:
                     # there is a bbox, redefine
-                    p_center = from3dWorld(camera, center)
+                    p_center = from3dPoint(camera, center)
                     p_bbox = bbox.getFeet()
                     bbox.translate(f_subtract(p_center, p_bbox).getAsXY(), CENTERBBOX_PARAM)
                     if not hasattr(predictions[camera][id].tracker, 'redefine'):
@@ -249,13 +249,13 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
         for camera in cameras:
             for bbox in detector_unused[camera]:
                 # check if point is inside other detections in all cameras
-                point3d = to3dWorld(camera, bbox)
+                point3d = to3dPoint(camera, bbox)
                 supported = True
                 for camera2 in cameras:
                     if camera2 == camera: continue
 
                     valid = False
-                    point2d = from3dWorld(camera2, point3d)
+                    point2d = from3dPoint(camera2, point3d)
                     if not isInsideFrameP(point2d, frames[camera]): continue
                     for bbox2 in detector[camera2]:
                         if bbox2.contains(point2d, 10):
@@ -291,7 +291,7 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
             # get prediction in 3d world (if available)
             prediction = predictions[camera][id]
             if prediction.bbox is None: continue
-            point3d = to3dWorld(camera, prediction.bbox)
+            point3d = to3dPoint(camera, prediction.bbox)
 
             if id >= 0:
 
@@ -395,12 +395,12 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
     return predictions, ids, maxid
 
 
-def to3dWorld(camera, bbox):
+def to3dPoint(camera, bbox):
     calib = getCalibrationMatrix(camera)
     return f_multiply(calib, bbox.getFeet())
 
 
-def from3dWorld(camera, point):
+def from3dPoint(camera, point):
     invCalib = np.linalg.inv(getCalibrationMatrix(camera))
     return f_multiply(invCalib, point)
 
@@ -562,7 +562,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
                     bbox = estimations[dataset][id].bbox
                     if bbox is None: continue
 
-                    px, py = to3dWorld(dataset, bbox).getAsXY()
+                    px, py = to3dPoint(dataset, bbox).getAsXY()
                     cv2.circle(frame, (int(px), int(py)), 1, color, thick)
 
                 # center
