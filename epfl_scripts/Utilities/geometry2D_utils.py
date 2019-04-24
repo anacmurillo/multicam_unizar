@@ -2,6 +2,9 @@
 Functions and classes math and geometry related
 """
 import math
+import numpy as np
+
+OVERPERCENT = 0.05  # percent of what the feets and head are considered related to the bboxes
 
 
 class Bbox:
@@ -35,8 +38,17 @@ class Bbox:
     def getCenter(self):
         return Point2D(self.xmin + self.width / 2., self.ymin + self.height / 2.)
 
-    def getFeet(self):
-        return Point2D(self.xmin + self.width / 2., self.ymax - self.height*0.05)
+    def getFeet(self, deviation=0):
+        """
+        :param deviation: 0 for feets (center of bbox, default), 1 for right edge, -1 for left edge
+        """
+        return Point2D(self.xmin + self.width * (1. + deviation) / 2., self.ymax - self.height * OVERPERCENT)
+
+    def getHair(self, deviation=0):
+        """
+        :param deviation: 0 for head (center of bbox, default), 1 for right edge, -1 for left edge
+        """
+        return Point2D(self.xmin + self.width * (1. + deviation) / 2., self.ymin + self.height * OVERPERCENT)
 
     def isValid(self):
         return self.width >= 0 and self.height >= 0
@@ -121,6 +133,15 @@ def f_subtract(a, b):
     """
     return Point2D(b.s * a.x - a.s * b.x, b.s * a.y - a.s * b.y, a.s * b.s)
 
+def f_add(a, b):
+    """
+    return addition of points a+b
+    :param a:
+    :param b:
+    :return:
+    """
+    return Point2D(b.s * a.x + a.s * b.x, b.s * a.y + a.s * b.y, a.s * b.s)
+
 
 def f_euclidian(a, b):
     """
@@ -144,6 +165,9 @@ def f_multiply(matrix, p):
             rows[i] += matrix[i][j] * p.getAsXYS()[j]
     return Point2D(rows[0], rows[1], rows[2])
 
+
+def f_multiplyInv(invmatrix, p):
+    return f_multiply(np.linalg.inv(invmatrix), p)
 
 def f_average(points, weights):
     """

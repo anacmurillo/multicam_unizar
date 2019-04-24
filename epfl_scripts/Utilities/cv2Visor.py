@@ -27,6 +27,7 @@ from cv2 import __version__
 # CONF
 __MAXSAVED = 50
 __PAUSEKEY = 32  # space
+__BLEND = 0.4
 __frames = {}
 __step = False
 
@@ -110,6 +111,18 @@ def destroyAllWindows():
     return r
 
 
+def __mergeImages():
+    import numpy as np
+    merged = {}
+    for winname in __frames:
+        n = len(__frames[winname])
+        merged[winname] = __frames[winname][n - 1].copy().astype(float)
+        for i in range(n - 2, 0, -1):
+            merged[winname] = merged[winname] * 0.9 + __frames[winname][i] * 0.1
+        merged[winname] = (merged[winname]).astype(np.uint8)
+    return merged
+
+
 def __pauseDisplay():
     """
     Internal pause display, see header
@@ -152,6 +165,11 @@ def __pauseDisplay():
         elif k == 32:  # space
             __step = True
             break
+        elif k == 13:
+            merged = __mergeImages()
+            for winname in __frames:
+                cv2.imshow(winname, merged[winname])
+            continue
         elif k != 255:  # other
             print "pressed", k
 

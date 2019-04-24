@@ -17,9 +17,10 @@ import cv2  # opencv
 
 basefolder = "/media/datos/abel/epfl/dataset/"
 
-groundtruth_folder = basefolder+"merayxu-multiview-object-tracking-dataset-d2990e227c57/EPFL/"
-video_folder = basefolder+"frames/"
-superDetector_folder = basefolder+"superDetector/"
+groundtruth_folder = basefolder + "merayxu-multiview-object-tracking-dataset-d2990e227c57/EPFL/"
+video_folder = basefolder + "frames/"
+superDetector_folder = basefolder + "superDetector/"
+
 
 # download the files here: https://drive.google.com/open?id=1K02knTTWmCn00eXp2tRbwNr7BGLSsueM
 
@@ -127,15 +128,29 @@ def getCalibrationMatrix(dataset):
     :return: the matrix
     :raise ValueError: if the dataset doesn't have a calibration matrix
     """
-    if dataset in calibrationmatrixes:
-        return calibrationmatrixes[dataset]
+    if dataset in calib_ground:
+        return calib_ground[dataset]
+    else:
+        raise ValueError("calibration matrix not parsed for dataset '" + dataset + "'")
+
+
+def getCalibrationMatrixFull(dataset):
+    """
+    Returns the calibration matrix (3x3 homography from image plane to floor plane) of the defined dataset
+    plus the calibration matrix/height/percent of the head plane
+    :param dataset: dataset to retrieve the matrix from
+    :return: (ground matrix, (type, head calib), height) where 'type' is one of 'm'=matrix or 'h'=height (image coordinates, 0=top HEIGHT=bottom)
+    :raise ValueError: if the dataset doesn't have a calibration matrix
+    """
+    if dataset in calib_ground and dataset in calib_head:
+        return calib_ground[dataset], calib_head[dataset], 1.75
     else:
         raise ValueError("calibration matrix not parsed for dataset '" + dataset + "'")
 
 
 ##################### utilities ##########################
 
-calibrationmatrixes = {
+calib_ground = {
     'Passageway/passageway1-c0': [[-0.0000245975, -0.0000047863, 0.0181735812], [0.0000056945, 0.0000089998, 0.0243277264], [-0.0000000067, 0.0000006977, -0.0000552219]],
     'Passageway/passageway1-c1': [[-0.0000110292, 0.0000768559, -0.0105851797], [-0.0000097598, 0.0000196797, 0.0130811407], [0.0000000029, 0.0000004326, -0.0000362086]],
     'Passageway/passageway1-c2': [[-0.0000145114, -0.0000570495, 0.0140615401], [-0.0000033340, -0.0001351901, 0.0189803318], [-0.0000000260, -0.0000003176, 0.0000289364]],
@@ -157,8 +172,29 @@ calibrationmatrixes = {
 
 }
 
+calib_head = {
+    'Passageway/passageway1-c0': ('m', [[-0.0001992967, -0.0001372192, 0.1530411217], [0.0000092943, 0.0023658203, 0.0048166612], [-0.0000007057, 0.0000747725, -0.0060521876]]),
+    'Passageway/passageway1-c1': ('m', [[0.0002353193, 0.0244575829, -1.9678616353], [0.0000248131, 0.0087071466, -0.5698245229], [0.0000019278, 0.0001447733, -0.0114548917]]),
+    'Passageway/passageway1-c2': ('m', [[-0.0004706421, -0.0052202894, 0.5245411970], [-0.0005905961, -0.0130232891, 1.0436517288], [-0.0000014809, -0.0000289858, 0.0019363707]]),
+    'Passageway/passageway1-c3': ('m', [[0.0121704542, 0.0091329531, -2.1815700095], [0.0060104975, 0.7318153616, -86.9535079765], [0.0000063435, 0.0015889333, -0.1627672201]]),
 
-# javascript to extract from files:
+    'Terrace/terrace1-c0': ('h', 10.590278),
+    'Terrace/terrace1-c1': ('h', 9.722222),
+    'Terrace/terrace1-c2': ('h', 6.423611),
+    'Terrace/terrace1-c3': ('h', 6.423611),
+
+    'Laboratory/6p-c0': ('m', [[0.053299, 1.247713, 13.803214], [-0.092242, 1.196431, 38.620552], [-0.000080, 0.003919, 0.164282]]),
+    'Laboratory/6p-c1': ('m', [[0.081202, 0.089186, 14.746465], [0.070703, 1.091119, -8.872128], [0.000001, 0.003361, 0.097146]]),
+    'Laboratory/6p-c2': ('h', 0),
+    'Laboratory/6p-c3': ('h', 0),
+
+    'Campus/campus7-c0': ('h', 0.31 * 288),
+    'Campus/campus7-c1': ('h', 0.25 * 288),
+    'Campus/campus7-c2': ('h', 0.18 * 288),
+}
+
+
+# //javascript to extract from files:
 # s=prompt("message","")
 # s=s.split(/\s+/g)
 # prompt("result", array([array(s.slice(0,3)),array(s.slice(3,6)),array(s.slice(6,9))]))

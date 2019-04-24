@@ -9,8 +9,10 @@ import sys
 import cv2
 import numpy as np
 
-from epfl_scripts.Utilities.geometry_utils import f_multiply, Point2D
-from epfl_scripts.groundTruthParser import getGroupedDatasets, getVideo, getCalibrationMatrix
+from epfl_scripts.Utilities.geometry2D_utils import f_multiply, Point2D, f_multiplyInv
+from epfl_scripts.Utilities.geometry3D_utils import Cilinder
+from epfl_scripts.groundTruthParser import getGroupedDatasets, getVideo, getCalibrationMatrix, getCalibrationMatrixFull
+from epfl_scripts.multiCameraTrackerV2 import from3dCilinder
 
 FLOOR = '__floor__'
 
@@ -34,6 +36,7 @@ class MultiVisor:
                 sys.exit()
 
             # Read first frame.
+            video.set(cv2.CAP_PROP_POS_FRAMES, 1000)
             ok, frame = video.read()
             if not ok:
                 print "Cannot read video file"
@@ -52,20 +55,34 @@ class MultiVisor:
     def clickEvent(self, event, x, y, flags, dataset):
         # print x, y, dataset
         point = Point2D(x, y)
-        if dataset == FLOOR:
-            self.updateViews(point)
-        else:
+        if dataset != FLOOR:
             point = f_multiply(getCalibrationMatrix(dataset), point)
         self.updateViews(point)
 
     def updateViews(self, point=None):
+
         for dataset in self.groupDataset:
             frame = self.frames[dataset].copy()
 
             if point is not None:
-                invCalib = np.linalg.inv(getCalibrationMatrix(dataset))
-                px, py = f_multiply(invCalib, point).getAsXY()
+                groundM, (headT, headP), headH = getCalibrationMatrixFull(dataset)
+
+                # bottom point
+                px, py = f_multiplyInv(groundM, point).getAsXY()
                 cv2.drawMarker(frame, (int(px), int(py)), (255, 255, 255), 1, 1, 5)
+
+                # top point
+                if headT == 'm':
+                    ppx, ppy = f_multiplyInv(headP, point).getAsXY()
+                elif headT == 'h':
+                    ppx, ppy = px, headP
+                else:
+                    raise AttributeError("Unknown calibration parameter: " + headT)
+                cv2.drawMarker(frame, (int(ppx), int(ppy)), (200, 200, 200), 1, 1, 5)
+
+                bbox = from3dCilinder(dataset, Cilinder(point, 0.5, 1.75))
+                l, t, r, b = bbox.getAsXmYmXMYM()
+                cv2.rectangle(frame, (int(l), int(t)), (int(r), int(b)), (255, 0, 0), 1, 1)
 
             cv2.imshow(dataset, frame)
         if point is not None:
@@ -76,6 +93,8 @@ class MultiVisor:
 
 
 if __name__ == '__main__':
+    #MultiVisor(getGroupedDatasets()['Laboratory/6p'])
+
     list = getGroupedDatasets().values()
     list.reverse()
     for dataset in list:

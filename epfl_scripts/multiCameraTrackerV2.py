@@ -4,6 +4,8 @@ from __future__ import print_function
 from __future__ import print_function
 from __future__ import print_function
 
+from epfl_scripts.Utilities.geometry3D_utils import Cilinder
+
 """
 Implementation of the algorithm. Main file
 """
@@ -21,16 +23,16 @@ import numpy as np
 
 # import cv2
 import epfl_scripts.Utilities.cv2Visor as cv2
+
 cv2.configure(100)
 
 from epfl_scripts.Utilities.cache import cache_function
 from epfl_scripts.Utilities.colorUtility import getColors
 from epfl_scripts.Utilities.cv2Trackers import getTracker
-from epfl_scripts.Utilities.geometry_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox, f_average, f_subtract, f_area
-from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets, getCalibrationMatrix
+from epfl_scripts.Utilities.geometry2D_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox, f_average, f_subtract, f_area, f_multiplyInv, f_add
+from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets, getCalibrationMatrix, getCalibrationMatrixFull
 
 WIN_NAME = "Tracking"
-
 
 IOU_THRESHOLD = 0.5  # minimum iou to assign a detection to a prediction
 FRAMES_LOST = 25  # maximum number of frames until the detection is removed
@@ -395,14 +397,59 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
     return predictions, ids, maxid
 
 
+def to3dCilinder(camera, bbox):
+    groundCalib, (headType, headCalib), headHeight = getCalibrationMatrixFull(camera)
+
+    groundP = f_multiply(groundCalib, bbox.getFeet())
+
+    width = f_euclidian(groundP, f_multiply(groundCalib, bbox.getFeet(1))) / 2. + f_euclidian(groundP, f_multiply(groundCalib, bbox.getFeet(-1))) / 2.
+
+    feetY = bbox.getFeet().getAsXY()[1]
+    if headType == 'm':
+        headY = f_multiplyInv(headCalib, groundP).getAsXY()[1]
+    elif headType == 'h':
+        headY = headCalib
+    else:
+        raise AttributeError("Unknown calibration parameter: " + headType)
+
+    # lets assume it is lineal (it is not, but with very little difference)
+    height = headHeight * (bbox.getHair()[1] - feetY) / (headY - feetY)
+
+    return Cilinder(groundP, width, height)
+
+
+def from3dCilinder(camera, cilinder):
+    groundCalib, (headType, headCalib), headHeight = getCalibrationMatrixFull(camera)
+
+    center = cilinder.getCenter()
+
+    bottom = f_multiplyInv(groundCalib, center)
+
+    width = f_euclidian(f_multiplyInv(groundCalib, f_add(center, Point2D(0, cilinder.getWidth()))), bottom) + f_euclidian(f_multiplyInv(groundCalib, f_add(center, Point2D(cilinder.getWidth(), 0))), bottom)  # this is not exactly right...but should be close enough
+
+    width *= 50  # magic number, found by testing
+
+    if headType == 'm':
+        topY = f_multiplyInv(headCalib, center).getAsXY()[1]
+    elif headType == 'h':
+        topY = headCalib
+    else:
+        raise AttributeError("Unknown calibration parameter: " + headType)
+
+    # lets assume it is lineal (it is not, but with very little difference)
+    height = (bottom.getAsXY()[1] - topY) * cilinder.getHeight() / headHeight
+
+    return Bbox.XmYmWH(bottom.getAsXY()[0] - width / 2., bottom.getAsXY()[1] - height, width, height)
+
+
 def to3dPoint(camera, bbox):
     calib = getCalibrationMatrix(camera)
     return f_multiply(calib, bbox.getFeet())
 
 
 def from3dPoint(camera, point):
-    invCalib = np.linalg.inv(getCalibrationMatrix(camera))
-    return f_multiply(invCalib, point)
+    calib = getCalibrationMatrix(camera)
+    return f_multiplyInv(calib, point)
 
 
 def isInsideFrameP(point, frame):
