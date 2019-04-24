@@ -29,6 +29,12 @@ class Bbox:
     def XmYmWH(cls, xmin, ymin, width, height):
         return cls(xmin, xmin + width, width, ymin, ymin + height, height)
 
+    @classmethod
+    def FeetWH(cls, feet, width, height):
+        bx, by = feet.getAsXY()
+        heightOVER = height / (1. - 2. * OVERPERCENT) * OVERPERCENT
+        return cls(bx - width / 2, bx + width / 2, width, by - height - heightOVER, by + heightOVER, height + 2 * heightOVER)
+
     def getAsXmYmXMYM(self):
         return self.xmin, self.ymin, self.xmax, self.ymax
 

@@ -427,8 +427,6 @@ def from3dCilinder(camera, cilinder):
 
     width = f_euclidian(f_multiplyInv(groundCalib, f_add(center, Point2D(0, cilinder.getWidth()))), bottom) + f_euclidian(f_multiplyInv(groundCalib, f_add(center, Point2D(cilinder.getWidth(), 0))), bottom)  # this is not exactly right...but should be close enough
 
-    width *= 50  # magic number, found by testing
-
     if headType == 'm':
         topY = f_multiplyInv(headCalib, center).getAsXY()[1]
     elif headType == 'h':
@@ -439,7 +437,7 @@ def from3dCilinder(camera, cilinder):
     # lets assume it is lineal (it is not, but with very little difference)
     height = (bottom.getAsXY()[1] - topY) * cilinder.getHeight() / headHeight
 
-    return Bbox.XmYmWH(bottom.getAsXY()[0] - width / 2., bottom.getAsXY()[1] - height, width, height)
+    return Bbox.FeetWH(bottom, width, height)
 
 
 def to3dPoint(camera, bbox):

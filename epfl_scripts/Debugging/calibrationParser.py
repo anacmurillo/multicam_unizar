@@ -32,14 +32,14 @@ class MultiVisor:
 
             # Exit if video not opened.
             if not video.isOpened():
-                print "Could not open video for dataset", dataset
+                print("Could not open video for dataset", dataset)
                 sys.exit()
 
             # Read first frame.
             video.set(cv2.CAP_PROP_POS_FRAMES, 1000)
             ok, frame = video.read()
             if not ok:
-                print "Cannot read video file"
+                print("Cannot read video file")
                 sys.exit()
             self.frames[dataset] = frame
             video.release()
@@ -80,7 +80,7 @@ class MultiVisor:
                     raise AttributeError("Unknown calibration parameter: " + headT)
                 cv2.drawMarker(frame, (int(ppx), int(ppy)), (200, 200, 200), 1, 1, 5)
 
-                bbox = from3dCilinder(dataset, Cilinder(point, 0.5, 1.75))
+                bbox = from3dCilinder(dataset, Cilinder(point, 0.5 * 50, 1.75))  # 50=magic number, found by testing
                 l, t, r, b = bbox.getAsXmYmXMYM()
                 cv2.rectangle(frame, (int(l), int(t)), (int(r), int(b)), (255, 0, 0), 1, 1)
 
@@ -98,5 +98,5 @@ if __name__ == '__main__':
     list = getGroupedDatasets().values()
     list.reverse()
     for dataset in list:
-        print dataset
+        print(dataset)
         MultiVisor(dataset)
