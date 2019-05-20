@@ -45,7 +45,7 @@ DETECTION_DIST = 50  # if a new point is closer than this to an existing point, 
 
 FRAMES_CHANGEID = 5  # if this number of frames passed wanting to change id, it is changed
 
-REDEFINED_PARAM = 1  # percent of the redefined bbox (1=new, 0=original)
+REDEFINED_PARAM = 0  # percent of the redefined bbox (1=new, 0=original)
 CENTERBBOX_PARAM = 0  # percent of the centering of the bboxes (1=center, 0=unchanged)
 
 
@@ -395,49 +395,6 @@ def estimateFromPredictions(predictions, ids, maxid, detector, cameras, frames):
     ids = newids
 
     return predictions, ids, maxid
-
-
-def to3dCilinder(camera, bbox):
-    groundCalib, (headType, headCalib), headHeight = getCalibrationMatrixFull(camera)
-
-    groundP = f_multiply(groundCalib, bbox.getFeet())
-
-    width = f_euclidian(groundP, f_multiply(groundCalib, bbox.getFeet(1))) / 2. + f_euclidian(groundP, f_multiply(groundCalib, bbox.getFeet(-1))) / 2.
-
-    feetY = bbox.getFeet().getAsXY()[1]
-    if headType == 'm':
-        headY = f_multiplyInv(headCalib, groundP).getAsXY()[1]
-    elif headType == 'h':
-        headY = headCalib
-    else:
-        raise AttributeError("Unknown calibration parameter: " + headType)
-
-    # lets assume it is lineal (it is not, but with very little difference)
-    height = headHeight * (bbox.getHair()[1] - feetY) / (headY - feetY)
-
-    return Cilinder(groundP, width, height)
-
-
-def from3dCilinder(camera, cilinder):
-    groundCalib, (headType, headCalib), headHeight = getCalibrationMatrixFull(camera)
-
-    center = cilinder.getCenter()
-
-    bottom = f_multiplyInv(groundCalib, center)
-
-    width = f_euclidian(f_multiplyInv(groundCalib, f_add(center, Point2D(0, cilinder.getWidth()))), bottom) + f_euclidian(f_multiplyInv(groundCalib, f_add(center, Point2D(cilinder.getWidth(), 0))), bottom)  # this is not exactly right...but should be close enough
-
-    if headType == 'm':
-        topY = f_multiplyInv(headCalib, center).getAsXY()[1]
-    elif headType == 'h':
-        topY = headCalib
-    else:
-        raise AttributeError("Unknown calibration parameter: " + headType)
-
-    # lets assume it is lineal (it is not, but with very little difference)
-    height = (bottom.getAsXY()[1] - topY) * cilinder.getHeight() / headHeight
-
-    return Bbox.FeetWH(bottom, width, height)
 
 
 def to3dPoint(camera, bbox):

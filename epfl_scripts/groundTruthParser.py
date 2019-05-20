@@ -139,11 +139,13 @@ def getCalibrationMatrixFull(dataset):
     Returns the calibration matrix (3x3 homography from image plane to floor plane) of the defined dataset
     plus the calibration matrix/height/percent of the head plane
     :param dataset: dataset to retrieve the matrix from
-    :return: (ground matrix, (type, head calib), height) where 'type' is one of 'm'=matrix or 'h'=height (image coordinates, 0=top HEIGHT=bottom)
+    :return: (ground matrix, (type, head calib), height, distMult) where 'type' is one of 'm'=matrix or 'h'=height (image coordinates, 0=top HEIGHT=bottom)
+    height: distance bewteen planes
+    distMult: value to multiply the 3d world XYsize to get human 3d XYsize (similar to Zheight)
     :raise ValueError: if the dataset doesn't have a calibration matrix
     """
     if dataset in calib_ground and dataset in calib_head:
-        return calib_ground[dataset], calib_head[dataset], 1.75
+        return calib_ground[dataset], calib_head[dataset], 1.75, 9  # 9 is a magic number
     else:
         raise ValueError("calibration matrix not parsed for dataset '" + dataset + "'")
 
