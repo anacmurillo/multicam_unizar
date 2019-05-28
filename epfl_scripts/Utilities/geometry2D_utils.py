@@ -2,6 +2,7 @@
 Functions and classes math and geometry related
 """
 import math
+
 import numpy as np
 
 OVERPERCENT = 0.05  # percent of what the feets and head are considered related to the bboxes
@@ -30,10 +31,13 @@ class Bbox:
         return cls(xmin, xmin + width, width, ymin, ymin + height, height)
 
     @classmethod
-    def FeetWH(cls, feet, width, height):
+    def FeetWH(cls, feet, width, height, heightReduced=False):
+        if heightReduced:
+            height /= (1 - 2 * OVERPERCENT)
+
         bx, by = feet.getAsXY()
-        heightOVER = height / (1. - 2. * OVERPERCENT) * OVERPERCENT
-        return cls(bx - width / 2, bx + width / 2, width, by - height - heightOVER, by + heightOVER, height + 2 * heightOVER)
+        feetHeight = height * OVERPERCENT
+        return cls(bx - width / 2, bx + width / 2, width, by + feetHeight - height, by + feetHeight, height)
 
     def getAsXmYmXMYM(self):
         return self.xmin, self.ymin, self.xmax, self.ymax
@@ -76,10 +80,10 @@ class Bbox:
         self.height = self.ymax - self.ymin
 
     def translate(self, (dx, dy), alpha=1):
-        self.xmin += int(dx*alpha)
-        self.xmax += int(dx*alpha)
-        self.ymin += int(dy*alpha)
-        self.ymax += int(dy*alpha)
+        self.xmin += int(dx * alpha)
+        self.xmax += int(dx * alpha)
+        self.ymin += int(dy * alpha)
+        self.ymax += int(dy * alpha)
 
     def contains(self, point, margin=0):
         x, y = point.getAsXY()
@@ -92,7 +96,7 @@ class Point2D:
     Can transform between normal (x,y) and homogeneous (x,y,s) coordinates
     """
 
-    def __init__(self, x, y, s=1):
+    def __init__(self, x, y, s=1.):
         self.x = x
         self.y = y
         self.s = s
@@ -102,6 +106,9 @@ class Point2D:
 
     def getAsXYS(self):
         return self.x, self.y, self.s
+
+    def normalize(self, dist=1.):
+        return Point2D(self.x, self.y, math.sqrt(self.x ** 2 + self.y ** 2) / dist)
 
 
 def f_iou(boxA, boxB):
@@ -139,6 +146,7 @@ def f_subtract(a, b):
     """
     return Point2D(b.s * a.x - a.s * b.x, b.s * a.y - a.s * b.y, a.s * b.s)
 
+
 def f_add(a, b):
     """
     return addition of points a+b
@@ -174,6 +182,7 @@ def f_multiply(matrix, p):
 
 def f_multiplyInv(invmatrix, p):
     return f_multiply(np.linalg.inv(invmatrix), p)
+
 
 def f_average(points, weights):
     """

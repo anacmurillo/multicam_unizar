@@ -1,39 +1,41 @@
 from __future__ import print_function
-from __future__ import print_function
-from __future__ import print_function
-from __future__ import print_function
-from __future__ import print_function
+
+import os
+import sys
+
+import numpy as np
 
 from epfl_scripts.Debugging.calibrationParser import toInt
+from epfl_scripts.Utilities.cache import cache_function
 from epfl_scripts.Utilities.cilinderTracker import CilinderTracker
 from epfl_scripts.Utilities.cilinderTracker import to3dCilinder
-from epfl_scripts.Utilities.geometry3D_utils import Cilinder, f_averageCilinders
+from epfl_scripts.Utilities.colorUtility import getColors
+from epfl_scripts.Utilities.geometry2D_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox
+from epfl_scripts.Utilities.geometry3D_utils import f_averageCilinders
+from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets, getCalibrationMatrix
 
-"""
-Implementation of the algorithm. Main file
-"""
-
+### Imports ###
 try:
-    from detectron import Detectron
+    if "OFFLINE" in os.environ:
+        raise("Force offline detectron")
+    from detectron_wrapper import Detectron
 except Exception as e:
     print("Detectron not available, using cached one. Full exception below:")
     print(e)
     from cachedDetectron import CachedDetectron as Detectron
-
-import sys
-
-import numpy as np
 
 # import cv2
 import epfl_scripts.Utilities.cv2Visor as cv2
 
 cv2.configure(100)
 
-from epfl_scripts.Utilities.cache import cache_function
-from epfl_scripts.Utilities.colorUtility import getColors
-from epfl_scripts.Utilities.cv2Trackers import getTracker
-from epfl_scripts.Utilities.geometry2D_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox, f_average, f_subtract, f_area, f_multiplyInv, f_add
-from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets, getCalibrationMatrix, getCalibrationMatrixFull
+
+"""
+Implementation of the algorithm. Main file
+"""
+
+
+### Variables ###
 
 WIN_NAME = "Tracking"
 WINF_NAME = WIN_NAME + "_overview"
@@ -53,15 +55,14 @@ DETECTION_DIST = 50  # if a new point is closer than this to an existing point, 
 FRAMES_CHANGEID = 5  # if this number of frames passed wanting to change id, it is changed
 
 
-def getUnusedId(group):
-    free = -1
-    while free in group:
-        free -= 1
-    return free
-
+### Functions
 
 class Prediction:
-    NEXTUID = 0
+    """
+    Represents a tracker of a person (or not)
+    """
+    NEXTPERSONUID = 0
+    NEXTUID = -1
 
     def __init__(self, tracker=None):
         self.tracker = tracker
@@ -70,7 +71,8 @@ class Prediction:
         self.detectorFound = False
 
         self.person = False
-        self.uniqueID = -1
+        self.uniqueID = Prediction.NEXTUID
+        Prediction.NEXTUID -= 1
 
         self.newid = None
         self.newidCounter = 0
@@ -79,36 +81,36 @@ class Prediction:
         self.redefineCilinder = None
 
     def redefine(self, cilinder):
+        """
+        Marks the cilinder for the new measure step
+        :param cilinder:
+        :return:
+        """
         self.redefineCilinder = cilinder
 
     def updateCilinder(self, images):
-        # cilinders = []
-        # weights = []
-        #
-        # cilinders.append(self.tracker.getCilinder())
-        # weights.append(2)
-        #
-        # for cilinder in self.cilinders:
-        #     cilinders.append(cilinder)
-        #     weights.append(1)
-        #
-        # ok, new_point = self.tracker.update(images, f_averageCilinders(cilinders, weights))
-        #
-        # self.trackerFound = ok
-        # self.cilinders.clear()
-        ##################
+        """
+        Runs the update step of the tracker
+        """
 
         self.trackerFound, _ = self.tracker.update(images, self.redefineCilinder)
 
     def setPersonIfRequired(self):
+        """
+        Checks if this tracker meets the condition to be following a person and updates it (does nothing if it already is)
+        """
         if self.person: return
 
         if self.framesLost < -FRAMES_PERSON:
             self.person = True
-            self.uniqueID = Prediction.NEXTUID
-            Prediction.NEXTUID += 1
+            self.uniqueID = Prediction.NEXTPERSONUID
+            Prediction.NEXTPERSONUID += 1
 
     def updateLost(self, weight):
+        """
+        Checks if this tracker meets the condition to be lost
+        :param weight: if 1 normal, 2 means twice as fast (for lost), etc
+        """
         if self.trackerFound and self.detectorFound:
             framesLost = min(0, self.framesLost - 1)  # if negative, found
         else:
@@ -121,91 +123,48 @@ class Prediction:
             # lost
             return True
 
-    def wantToChange(self, tag, newId, counter):
-        self.newTags.add(tag)
-
-        same, newId = compareIds(self.newid, newId)
-        if same:
-            # we want to change again
-            if self.newidCounter > FRAMES_CHANGEID:
-                # a lot of frames since we want to change, lets change
-                self.newTags.clear()
-                self.newid = None
-                self.newidCounter = 0
-                self.framesLost = 0
-                return newId
-            else:
-                # we want to change, but still not time enough
-                self.newidCounter += counter
-                self.newid = newId
-                return None
-        else:
-            # first time we want to change, init
-            self.newid = newId
-            self.newidCounter = 0
-
-    def dontWantToChange(self, tag):
-        if tag in self.newTags:
-            # wanted to change, don't want now
-            self.newTags.remove(tag)
-            if len(self.newTags) == 0:
-                # no other thing want to change, stop
-                self.newidCounter = 0
-                self.newid = None
-
     def isWorstThan(self, other):
         """
+        returns true iff we are worst than other
         more lost is worst
+        we are worst iff we are similar, and we have lost it more
         """
-
-        # we are similar, and we have lost it more -> we are worst
         return f_similarCilinders(self.tracker.getCilinder(), other.tracker.getCilinder()) and self.framesLost > other.framesLost
-
-def compareIds(id1, id2):
-    """
-    returns same, newid
-        if same==True, id1 and id2 can be considered the same and newid is that common id
-        else id1 and id2 are different, and newid=id2
-    """
-    if id1 is None and id2 is not None:
-        return False, id2
-    if id1 is not None and id2 is None:
-        return False, id2
-    if id1 is None and id2 is None:
-        return True, None
-    if id1 is 'any':
-        return True, id2
-    if id2 is 'any':
-        return True, id1
-    if id1 == id2:
-        return True, id1
-    return False, id2
-
-
-def findCenterOfGroup(predictions, id, cameras):
-    points = []
-    weights = []
-    for camera in cameras:
-
-        # don't use if not a bbox
-        bbox = predictions[camera][id].bbox
-        if bbox is None: continue
-
-        points.append(to3dPoint(camera, predictions[camera][id].bbox))
-        weights.append(-predictions[camera][id].framesLost)
-    return f_average(points, weights), len(points)
 
 
 def f_similarCilinders(a, b):
+    """
+    Return true iff the cilinders are similar (almost-same center, almost-same width and almost-same height)
+    """
     return f_euclidian(a.getCenter(), b.getCenter()) < DIST_THRESHOLD \
            and abs(a.getWidth() - b.getWidth()) < WIDTH_THRESHOLD \
            and abs(a.getHeight() - b.getHeight()) < HEIGHT_THRESHOLD
 
 
+def cropBbox(bbox, frame):
+    """
+    Crops the bounding box for displaying purposes
+    (otherwise opencv gives error if outside frame)
+    """
+    if bbox is None: return None
+
+    height, width, colors = frame.shape
+
+    # (0 <= roi.x && 0 <= roi.width && roi.x + roi.width <= m.cols && 0 <= roi.y && 0 <= roi.height && roi.y + roi.height <= m.rows)
+
+    return Bbox.XmYmXMYM(max(round(bbox.xmin), 0), max(round(bbox.ymin), 0), min(round(bbox.xmax), width), min(round(bbox.ymax), height))
+
+
+### Main ###
+
 def estimateFromPredictions(predictions, detector, cameras, frames):
+    """
+    Main function for processing
+    """
     # predictions = [prediction class]
     # detector[camera] = [ (bbox), ... ]
-    # for camera in cameras: etc
+    # for camera in cameras: ...
+    # frames[camera] = frame
 
     detector_unused = {}
 
@@ -214,35 +173,46 @@ def estimateFromPredictions(predictions, detector, cameras, frames):
         # assign detector instances to predictions
 
         for camera in cameras:
-            detector_unused[camera] = detector[camera][:]
+            detector_unused[camera] = detector[camera][:]  # copy
 
         for prediction in predictions:
             bboxes = prediction.tracker.getBboxes()
 
+            # get all bboxes that correspond to this person
             allCilinders = []
             allWeights = []
 
             for camera in cameras:
-                # update all predictions with the detections (if available)
+                # for each camera
+
+                # find the best bbox
+                best_simil = 0
+                best_detection = None
                 for detection in detector[camera]:
 
                     simil = f_iou(bboxes[camera], detection)  # getSimilarity(bboxes[camera], detection)
 
-                    if simil > 0:
-                        # use the detection
-                        allCilinders.append(to3dCilinder(camera, detection))
-                        allWeights.append(simil)
+                    if simil > best_simil:
+                        best_simil = simil
+                        best_detection = detection
 
-                        if detection in detector_unused[camera]: detector_unused[camera].remove(detection)
+                # if good enough, use
+                if best_simil > 0.5:
+                    # use the detection
+                    allCilinders.append(to3dCilinder(camera, best_detection))
+                    allWeights.append(best_simil)
+
+                    if best_detection in detector_unused[camera]: detector_unused[camera].remove(best_detection)
 
             if len(allCilinders) > 0:
-
+                # if cilinders to average, average
                 cilinder = f_averageCilinders(allCilinders, allWeights)
 
                 prediction.redefine(cilinder)
 
                 prediction.detectorFound = True
             else:
+                # no cilinders found, lost
                 prediction.detectorFound = False
 
     for prediction in predictions[:]:
@@ -268,10 +238,10 @@ def estimateFromPredictions(predictions, detector, cameras, frames):
                 # create new tracker
                 tracker = CilinderTracker(cameras)
                 tracker.init(frames, group)
-                if len(predictions) < 5 or True:
-                    predictions.append(Prediction(tracker))
+                # if len(predictions) >= 5: break # debug to keep 5 trackers at most
+                predictions.append(Prediction(tracker))
 
-    # phase 4: remove worst trackers
+    # phase 4: remove duplicated trackers
     uniquePredictions = []
     for prediction in predictions:
         keep = True
@@ -282,7 +252,6 @@ def estimateFromPredictions(predictions, detector, cameras, frames):
             uniquePredictions.append(prediction)
     predictions = uniquePredictions
 
-
     # phase 5: set target as person if tracked continuously
     for prediction in predictions:
         prediction.setPersonIfRequired()
@@ -290,40 +259,11 @@ def estimateFromPredictions(predictions, detector, cameras, frames):
     return predictions
 
 
-def to3dPoint(camera, bbox):
-    calib = getCalibrationMatrix(camera)
-    return f_multiply(calib, bbox.getFeet())
-
-
-def from3dPoint(camera, point):
-    calib = getCalibrationMatrix(camera)
-    return f_multiplyInv(calib, point)
-
-
-def isInsideFrameP(point, frame):
-    x, y = point.getAsXY()
-    height, width, _colors = frame.shape
-
-    return 0 <= x < width and 0 <= y < height
-
-
-def isInsideFrameB(bbox, frame):
-    height, width, _colors = frame.shape
-    return bbox.xmin > 0 and bbox.xmax < width and bbox.ymax < height  # bbox.ymin > 0 not checked
-
-
-def cropBbox(bbox, frame):
-    if bbox is None: return None
-
-    height, width, colors = frame.shape
-
-    # (0 <= roi.x && 0 <= roi.width && roi.x + roi.width <= m.cols && 0 <= roi.y && 0 <= roi.height && roi.y + roi.height <= m.rows)
-
-    return Bbox.XmYmXMYM(max(round(bbox.xmin), 0), max(round(bbox.ymin), 0), min(round(bbox.xmax), width), min(round(bbox.ymax), height))
-
-
 @cache_function("evalMultiTracker_{0}_{1}_{DETECTOR_FIRED}", lambda _gd, _tt, display, DETECTOR_FIRED: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 8)
 def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5):
+    """
+    Main
+    """
     # colors
     colors = getColors(12)
 
@@ -331,6 +271,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
     detector = Detectron()
 
     # floor
+    frame_floor = None
     if display:
         frame_floor = np.zeros((512, 512, 3), np.uint8)
 
@@ -386,7 +327,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
     cv2.namedWindow(WIN_NAME)
     cv2.moveWindow(WIN_NAME, 0, 0)
     cv2.namedWindow(WINF_NAME)
-    cv2.moveWindow(WINF_NAME, 0, frame.shape[1]+100)
+    cv2.moveWindow(WINF_NAME, 0, frames[groupDataset[0]].shape[1] + 100)
 
     # loop
     frame_index = 0
@@ -411,7 +352,6 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
                     for bbox in detector_results[dataset]:
                         tl = (int(bbox.xmin), int(bbox.ymin))
                         br = (int(bbox.xmax), int(bbox.ymax))
-                        cl = (int(bbox.xmin), int(bbox.ymin + bbox.height / 2))
                         cv2.rectangle(frames[dataset], tl, br, color, 1, 1)
         else:
             detector_results = None
@@ -519,7 +459,10 @@ if __name__ == '__main__':
     tracker = 'DEEP_SORT'  # deep sort
 
     # choose parameter
-    detector_fired = 1
+    detector_fired = 5
+
+    # offline
+    OFFLINE = True
 
     # run
     print(dataset, tracker, detector_fired)

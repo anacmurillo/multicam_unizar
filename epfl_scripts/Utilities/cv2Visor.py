@@ -23,6 +23,7 @@ import cv2
 from cv2 import *
 # noinspection PyUnresolvedReferences
 from cv2 import __version__
+# globals().update(importlib.import_module('cv2').__dict__)
 
 # CONF
 __MAXSAVED = 50
@@ -112,6 +113,9 @@ def destroyAllWindows():
 
 
 def __mergeImages():
+    """
+    Failed atempt at a 'ghost movement'
+    """
     import numpy as np
     merged = {}
     for winname in __frames:

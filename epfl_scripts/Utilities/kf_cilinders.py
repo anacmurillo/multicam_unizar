@@ -165,6 +165,8 @@ class KalmanFilterCilinder(object):
             Returns the measurement-corrected state distribution.
 
         """
+        if measurement is None:
+            return mean, covariance
         projected_mean, projected_cov = self.project(mean, covariance)
 
         chol_factor, lower = scipy.linalg.cho_factor(
