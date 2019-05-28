@@ -120,10 +120,18 @@ class MultiVisor:
 
             matrix = getCalibrationMatrix(dataset)
 
-            tl = toInt(f_multiply(matrix, Point2D(0, height / 2)).getAsXY())
-            tr = toInt(f_multiply(matrix, Point2D(width, height / 2)).getAsXY())
-            bl = toInt(f_multiply(matrix, Point2D(0, height)).getAsXY())
-            br = toInt(f_multiply(matrix, Point2D(width, height)).getAsXY())
+            tl = f_multiply(matrix, Point2D(0, height / 2))
+            tr = f_multiply(matrix, Point2D(width, height / 2))
+            bl = f_multiply(matrix, Point2D(0, height))
+            br = f_multiply(matrix, Point2D(width, height))
+
+            tl = f_add(bl, f_subtract(tl, bl).multiply(4))
+            tr = f_add(br, f_subtract(tr, br).multiply(4))
+
+            tl = toInt(tl.getAsXY())
+            tr = toInt(tr.getAsXY())
+            bl = toInt(bl.getAsXY())
+            br = toInt(br.getAsXY())
 
             color = (100, 100, 100)
 

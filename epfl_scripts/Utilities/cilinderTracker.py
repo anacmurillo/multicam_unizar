@@ -59,15 +59,15 @@ def from3dCilinder(camera, cilinder):
 
     # width = f_euclidian(f_multiplyInv(groundCalib, f_add(center, Point2D(0, cwidth))), bottom) + f_euclidian(f_multiplyInv(groundCalib, f_add(center, Point2D(cwidth, 0))), bottom)  # this is not exactly right...but should be close enough...no, it is not
 
-    # calculate width inan exact way, let me explain:
-    # take the bounding box center
+    # calculate width with an exact way, let me explain:
+    # -> take the bounding box center
     # -> add an horizontal vector (any, here (10,0))
     # -> translate the point to the floor
     # -> create the vector from the cilinder center to this point (subtracting points)
     # -> normalize the vector to the width of the cilinder
-    # -> add the vector the cilinder center (so that the point is on the circle)
+    # -> add the vector the cilinder center (so that the new point is on the circle)
     # -> invtranslate to the image
-    # -> measure the distante to the bbox center
+    # -> measure the distance to the bbox center
     # -> multiply by 2
     width = f_euclidian(bottom, f_multiplyInv(groundCalib, f_add(f_subtract(f_multiply(groundCalib, f_add(bottom, Point2D(10, 0))), center).normalize(cwidth), center))) * 2 \
         if cwidth != 0 else 0

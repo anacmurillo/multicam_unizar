@@ -10,14 +10,14 @@ from epfl_scripts.Utilities.cache import cache_function
 from epfl_scripts.Utilities.cilinderTracker import CilinderTracker
 from epfl_scripts.Utilities.cilinderTracker import to3dCilinder
 from epfl_scripts.Utilities.colorUtility import getColors
-from epfl_scripts.Utilities.geometry2D_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox
+from epfl_scripts.Utilities.geometry2D_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox, f_subtract, f_add
 from epfl_scripts.Utilities.geometry3D_utils import f_averageCilinders
 from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets, getCalibrationMatrix
 
 ### Imports ###
 try:
     if "OFFLINE" in os.environ:
-        raise("Force offline detectron")
+        raise ("Force offline detectron")
     from detectron_wrapper import Detectron
 except Exception as e:
     print("Detectron not available, using cached one. Full exception below:")
@@ -29,11 +29,9 @@ import epfl_scripts.Utilities.cv2Visor as cv2
 
 cv2.configure(100)
 
-
 """
 Implementation of the algorithm. Main file
 """
-
 
 ### Variables ###
 
@@ -303,10 +301,18 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
 
             matrix = getCalibrationMatrix(dataset)
 
-            tl = toInt(f_multiply(matrix, Point2D(0, height / 2)).getAsXY())
-            tr = toInt(f_multiply(matrix, Point2D(width, height / 2)).getAsXY())
-            bl = toInt(f_multiply(matrix, Point2D(0, height)).getAsXY())
-            br = toInt(f_multiply(matrix, Point2D(width, height)).getAsXY())
+            tl = f_multiply(matrix, Point2D(0, height / 2))
+            tr = f_multiply(matrix, Point2D(width, height / 2))
+            bl = f_multiply(matrix, Point2D(0, height))
+            br = f_multiply(matrix, Point2D(width, height))
+
+            tl = f_add(bl, f_subtract(tl, bl).multiply(4))
+            tr = f_add(br, f_subtract(tr, br).multiply(4))
+
+            tl = toInt(tl.getAsXY())
+            tr = toInt(tr.getAsXY())
+            bl = toInt(bl.getAsXY())
+            br = toInt(br.getAsXY())
 
             color = (100, 100, 100)
 

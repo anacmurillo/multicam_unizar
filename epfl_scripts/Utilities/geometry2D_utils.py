@@ -110,6 +110,9 @@ class Point2D:
     def normalize(self, dist=1.):
         return Point2D(self.x, self.y, math.sqrt(self.x ** 2 + self.y ** 2) / dist)
 
+    def multiply(self, val):
+        return Point2D(self.x, self.y, self.s / val)
+
 
 def f_iou(boxA, boxB):
     """
