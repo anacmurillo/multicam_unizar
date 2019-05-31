@@ -7,6 +7,7 @@ import colorsys  # generate colors
 
 C_WHITE = (255, 255, 255)
 C_BLACK = (0, 0, 0)
+C_GREY = (100, 100, 100)
 
 
 def getColors(n):
@@ -21,7 +22,7 @@ def getColors(n):
     return colors
 
 
-def blendColors(a, b, t = 0.5):
+def blendColors(a, b, t=0.5):
     """
     Returns the blending of the colors based on a 0-1 param.
     t=0 -> return a

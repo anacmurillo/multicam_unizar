@@ -4,8 +4,6 @@ from __future__ import print_function
 from __future__ import print_function
 from __future__ import print_function
 
-from epfl_scripts.Utilities.geometry3D_utils import Cilinder
-
 """
 Implementation of the algorithm. Main file
 """
@@ -28,9 +26,9 @@ cv2.configure(100)
 
 from epfl_scripts.Utilities.cache import cache_function
 from epfl_scripts.Utilities.colorUtility import getColors
-from epfl_scripts.Utilities.cv2Trackers import getTracker
-from epfl_scripts.Utilities.geometry2D_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox, f_average, f_subtract, f_area, f_multiplyInv, f_add
-from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets, getCalibrationMatrix, getCalibrationMatrixFull
+from epfl_scripts.trackers.cv2Trackers import getTracker
+from epfl_scripts.Utilities.geometry2D_utils import f_iou, f_euclidian, f_multiply, Bbox, f_average, f_subtract, f_area, f_multiplyInv
+from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets, getCalibrationMatrix
 
 WIN_NAME = "Tracking"
 

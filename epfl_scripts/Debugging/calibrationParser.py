@@ -9,20 +9,12 @@ import sys
 import cv2
 import numpy as np
 
-from epfl_scripts.Utilities.cilinderTracker import from3dCilinder, to3dCilinder
+from epfl_scripts.Utilities.colorUtility import C_GREY, C_WHITE
 from epfl_scripts.Utilities.geometry2D_utils import f_multiply, Point2D, f_multiplyInv, Bbox, f_add, f_subtract
+from epfl_scripts.Utilities.geometryCam import to3dCilinder, from3dCilinder, toInt, prepareBboxForDisplay, drawVisibilityLines
 from epfl_scripts.groundTruthParser import getGroupedDatasets, getVideo, getCalibrationMatrix, getCalibrationMatrixFull
 
 FLOOR = '__floor__'
-
-
-def toInt(v):
-    return tuple(int(round(e)) for e in v)
-
-
-def prepareBboxForDisplay(bbox):
-    l, t, r, b = bbox.getAsXmYmXMYM()
-    return toInt((l, t)), toInt((r, b))
 
 
 class Data:
@@ -116,29 +108,7 @@ class MultiVisor:
             video.release()
 
             # draw visible lines
-            height, width, _ = frame.shape
-
-            matrix = getCalibrationMatrix(dataset)
-
-            tl = f_multiply(matrix, Point2D(0, height / 2))
-            tr = f_multiply(matrix, Point2D(width, height / 2))
-            bl = f_multiply(matrix, Point2D(0, height))
-            br = f_multiply(matrix, Point2D(width, height))
-
-            tl = f_add(bl, f_subtract(tl, bl).multiply(4))
-            tr = f_add(br, f_subtract(tr, br).multiply(4))
-
-            tl = toInt(tl.getAsXY())
-            tr = toInt(tr.getAsXY())
-            bl = toInt(bl.getAsXY())
-            br = toInt(br.getAsXY())
-
-            color = (100, 100, 100)
-
-            # cv2.line(self.frames[FLOOR], tl, tr, color, 1, 1)
-            cv2.line(self.frames[FLOOR], tr, br, color, 1, 1)
-            cv2.line(self.frames[FLOOR], bl, br, color, 1, 1)
-            cv2.line(self.frames[FLOOR], tl, bl, color, 1, 1)
+            drawVisibilityLines(frame, self.frames[FLOOR], dataset)
 
             # show
             cv2.imshow(dataset, self.frames[dataset])
@@ -166,7 +136,7 @@ class MultiVisor:
         cv2.destroyAllWindows()
 
     def clickEvent(self, event, x, y, flags, dataset):
-        #print event, flags
+        # print event, flags
 
         if event == cv2.EVENT_MBUTTONUP:
             # debug
@@ -216,7 +186,7 @@ class MultiVisor:
 
                 # bottom point
                 px, py = f_multiplyInv(groundM, point).getAsXY()
-                cv2.drawMarker(frame, (int(px), int(py)), (255, 255, 255), 1, 1, 5)
+                cv2.drawMarker(frame, (int(px), int(py)), C_WHITE, 1, 1, 5)
 
                 # top point
                 if headT == 'm':
@@ -225,13 +195,13 @@ class MultiVisor:
                     ppx, ppy = px, headP
                 else:
                     raise AttributeError("Unknown calibration parameter: " + headT)
-                cv2.drawMarker(frame, (int(ppx), int(ppy)), (200, 200, 200), 1, 1, 5)
+                cv2.drawMarker(frame, (int(ppx), int(ppy)), C_GREY, 1, 1, 5)
 
             if self.data.points is not None:
                 # draw other points
                 for point in self.data.points:
                     px, py = f_multiplyInv(groundM, point).getAsXY()
-                    cv2.drawMarker(frame, (int(px), int(py)), (125, 125, 125), 1, 1, 5)
+                    cv2.drawMarker(frame, (int(px), int(py)), C_GREY, 1, 1, 5)
 
             cv2.imshow(dataset, frame)
 
@@ -241,24 +211,21 @@ class MultiVisor:
             # draw cilinder
             px, py = toInt(self.data.cilinder.getCenter().getAsXY())
             point = toInt((px, py))
-            color = (255, 255, 255)
-            cv2.circle(frame, point, int(self.data.cilinder.width), color, thickness=1, lineType=8)
+            cv2.circle(frame, point, int(self.data.cilinder.width), C_WHITE, thickness=1, lineType=8)
 
             height = toInt((px, py - self.data.cilinder.height * 25))
-            cv2.line(frame, point, height, color, 1, 1)
+            cv2.line(frame, point, height, C_WHITE, 1, 1)
 
         if self.data.mouse is not None:
             # draw mouse point
             point = toInt(self.data.mouse.getAsXY())
-            color = (255, 255, 255)
-            cv2.drawMarker(frame, point, color, 1, 1, 5)
+            cv2.drawMarker(frame, point, C_WHITE, 1, 1, 5)
 
         if self.data.points is not None:
             # draw other points
             for point in self.data.points:
-                color = (125, 125, 125)
                 point = toInt(point.getAsXY())
-                cv2.drawMarker(frame, point, color, 1, 1, 5)
+                cv2.drawMarker(frame, point, C_GREY, 1, 1, 5)
 
         cv2.imshow(FLOOR, frame)
 

@@ -13,9 +13,9 @@ import matplotlib.ticker as pltticker
 import numpy as np
 
 from epfl_scripts.Utilities.colorUtility import getColors, blendColors
-from epfl_scripts.Utilities.cv2Trackers import evaluateTracker, getTrackers
 from epfl_scripts.groundTruthParser import getGroundTruth, getGroupedDatasets
 from epfl_scripts.multiCameraTrackerV2 import evalMultiTracker
+from epfl_scripts.trackers.cv2Trackers import evaluateTracker, getTrackers
 
 
 def evaluateMetrics(dataset, tracker):

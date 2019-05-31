@@ -1,6 +1,9 @@
-from epfl_scripts.Utilities.geometry2D_utils import f_average, Point2D
-
+"""
+Functions and classes math and 3d geometry related
+"""
 import numpy as np
+
+from epfl_scripts.Utilities.geometry2D_utils import f_average, Point2D
 
 
 class Cilinder:
@@ -29,7 +32,7 @@ class Cilinder:
     def setCenter(self, center):
         self.center = center
 
-    def setWidth(self,width):
+    def setWidth(self, width):
         self.width = width
 
     def setHeight(self, height):

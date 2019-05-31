@@ -5,19 +5,18 @@ import sys
 
 import numpy as np
 
-from epfl_scripts.Debugging.calibrationParser import toInt
 from epfl_scripts.Utilities.cache import cache_function
-from epfl_scripts.Utilities.cilinderTracker import CilinderTracker
-from epfl_scripts.Utilities.cilinderTracker import to3dCilinder
-from epfl_scripts.Utilities.colorUtility import getColors
-from epfl_scripts.Utilities.geometry2D_utils import f_iou, f_euclidian, f_multiply, Point2D, Bbox, f_subtract, f_add
+from epfl_scripts.Utilities.colorUtility import getColors, C_GREY, C_WHITE, C_BLACK
+from epfl_scripts.Utilities.geometry2D_utils import f_iou, Bbox
 from epfl_scripts.Utilities.geometry3D_utils import f_averageCilinders
-from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets, getCalibrationMatrix
+from epfl_scripts.Utilities.geometryCam import f_similarCilinders, to3dCilinder, drawVisibilityLines, cropBbox
+from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets
+from epfl_scripts.trackers.cilinderTracker import CilinderTracker
 
 ### Imports ###
 try:
     if "OFFLINE" in os.environ:
-        raise ("Force offline detectron")
+        raise Exception("Force offline detectron")
     from detectron_wrapper import Detectron
 except Exception as e:
     print("Detectron not available, using cached one. Full exception below:")
@@ -37,10 +36,6 @@ Implementation of the algorithm. Main file
 
 WIN_NAME = "Tracking"
 WINF_NAME = WIN_NAME + "_overview"
-
-DIST_THRESHOLD = 20  # minimum dist to assign a detection to a prediction (in floor plane coordinates)
-HEIGHT_THRESHOLD = 0.5
-WIDTH_THRESHOLD = 0.5
 
 FRAMES_LOST = 25  # maximum number of frames until the detection is removed
 
@@ -62,7 +57,7 @@ class Prediction:
     NEXTPERSONUID = 0
     NEXTUID = -1
 
-    def __init__(self, tracker=None):
+    def __init__(self, tracker):
         self.tracker = tracker
         self.framesLost = 0
         self.trackerFound = False
@@ -71,10 +66,6 @@ class Prediction:
         self.person = False
         self.uniqueID = Prediction.NEXTUID
         Prediction.NEXTUID -= 1
-
-        self.newid = None
-        self.newidCounter = 0
-        self.newTags = set()
 
         self.redefineCilinder = None
 
@@ -127,30 +118,8 @@ class Prediction:
         more lost is worst
         we are worst iff we are similar, and we have lost it more
         """
-        return f_similarCilinders(self.tracker.getCilinder(), other.tracker.getCilinder()) and self.framesLost > other.framesLost
-
-
-def f_similarCilinders(a, b):
-    """
-    Return true iff the cilinders are similar (almost-same center, almost-same width and almost-same height)
-    """
-    return f_euclidian(a.getCenter(), b.getCenter()) < DIST_THRESHOLD \
-           and abs(a.getWidth() - b.getWidth()) < WIDTH_THRESHOLD \
-           and abs(a.getHeight() - b.getHeight()) < HEIGHT_THRESHOLD
-
-
-def cropBbox(bbox, frame):
-    """
-    Crops the bounding box for displaying purposes
-    (otherwise opencv gives error if outside frame)
-    """
-    if bbox is None: return None
-
-    height, width, colors = frame.shape
-
-    # (0 <= roi.x && 0 <= roi.width && roi.x + roi.width <= m.cols && 0 <= roi.y && 0 <= roi.height && roi.y + roi.height <= m.rows)
-
-    return Bbox.XmYmXMYM(max(round(bbox.xmin), 0), max(round(bbox.ymin), 0), min(round(bbox.xmax), width), min(round(bbox.ymax), height))
+        return f_similarCilinders(self.tracker.getCilinder(), other.tracker.getCilinder()) \
+               and self.framesLost > other.framesLost
 
 
 ### Main ###
@@ -257,11 +226,16 @@ def estimateFromPredictions(predictions, detector, cameras, frames):
     return predictions
 
 
-@cache_function("evalMultiTracker_{0}_{1}_{DETECTOR_FIRED}", lambda _gd, _tt, display, DETECTOR_FIRED: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 8)
-def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5):
+@cache_function("evalMultiTracker_{0}_{DETECTOR_FIRED}", lambda _gd, display, DETECTOR_FIRED: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 8)
+def evalMultiTracker(groupDataset, display=True, DETECTOR_FIRED=5):
     """
     Main
+    groupDataset: lista de datasets
+    tracker_type: no utilizado
+    display: mostrar por pantalla o no
+    detector_fired, cada cuantos frames ejecutar el detector
     """
+
     # colors
     colors = getColors(12)
 
@@ -297,29 +271,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
 
         if display:
             # draw floor visibility lines
-            height, width, _ = frame.shape
-
-            matrix = getCalibrationMatrix(dataset)
-
-            tl = f_multiply(matrix, Point2D(0, height / 2))
-            tr = f_multiply(matrix, Point2D(width, height / 2))
-            bl = f_multiply(matrix, Point2D(0, height))
-            br = f_multiply(matrix, Point2D(width, height))
-
-            tl = f_add(bl, f_subtract(tl, bl).multiply(4))
-            tr = f_add(br, f_subtract(tr, br).multiply(4))
-
-            tl = toInt(tl.getAsXY())
-            tr = toInt(tr.getAsXY())
-            bl = toInt(bl.getAsXY())
-            br = toInt(br.getAsXY())
-
-            color = (100, 100, 100)
-
-            # cv2.line(self.frames[FLOOR], tl, tr, color, 1, 1)
-            cv2.line(frame_floor, tr, br, color, 1, 1)
-            cv2.line(frame_floor, bl, br, color, 1, 1)
-            cv2.line(frame_floor, tl, bl, color, 1, 1)
+            drawVisibilityLines(frame, frame_floor, dataset)
 
     # initialize detection set
     data_detected = {}
@@ -353,12 +305,11 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
 
             # show detections
             if display:
-                color = (100, 100, 100)
                 for dataset in groupDataset:
                     for bbox in detector_results[dataset]:
                         tl = (int(bbox.xmin), int(bbox.ymin))
                         br = (int(bbox.xmax), int(bbox.ymax))
-                        cv2.rectangle(frames[dataset], tl, br, color, 1, 1)
+                        cv2.rectangle(frames[dataset], tl, br, C_GREY, 1, 1)
         else:
             detector_results = None
 
@@ -380,11 +331,11 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
                 # show bbox
                 if display:
                     # label = "{0}:{1}:{2}".format(id, estimations[dataset][id].framesLost, estimations[dataset][id].newid)
-                    label = "{0}:{1}:{2}".format(estimation.uniqueID, estimation.framesLost, estimation.newid)
+                    label = "{0}:{1}".format(estimation.uniqueID, estimation.framesLost)
                     tl = (int(bbox.xmin), int(bbox.ymin))
                     br = (int(bbox.xmax), int(bbox.ymax))
                     cl = (int(bbox.xmin), int(bbox.ymin + bbox.height / 2))
-                    color = colors[estimation.uniqueID % len(colors)] if estimation.person else (255, 255, 255)
+                    color = colors[estimation.uniqueID % len(colors)] if estimation.person else C_WHITE
                     cv2.rectangle(frames[dataset], tl, br, color, 2 if estimation.person else 1, 1)
                     cv2.putText(frames[dataset], label, cl, cv2.FONT_HERSHEY_SIMPLEX, 0.4 if estimation.person else 0.35, color, 1)
 
@@ -401,20 +352,20 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
             # display overview
             frame = frame_floor.copy()
             for estimation in estimations:
-                color = colors[estimation.uniqueID % len(colors)] if estimation.person else (255, 255, 255)
+                color = colors[estimation.uniqueID % len(colors)] if estimation.person else C_WHITE
                 thick = 2 if estimation.person else 1
 
                 # each center
                 center = estimation.tracker.getCilinder().getCenter()
                 x, y = center.getAsXY()
-                cv2.drawMarker(frame, (int(x), int(y)), (0, 0, 0), 3, 4)
+                cv2.drawMarker(frame, (int(x), int(y)), C_BLACK, 3, 4)
                 cv2.drawMarker(frame, (int(x), int(y)), color, 0, 2)
 
                 # with radius
                 radius = estimation.tracker.getCilinder().getWidth()
                 cv2.circle(frame, (int(x), int(y)), int(radius), color, thickness=1, lineType=8)
 
-            cv2.putText(frame, str(frame_index), (0, 512), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            cv2.putText(frame, str(frame_index), (0, 512), cv2.FONT_HERSHEY_SIMPLEX, 1, C_WHITE, 2)
             cv2.imshow(WINF_NAME, frame)
             # /end display overview
 
@@ -458,12 +409,6 @@ if __name__ == '__main__':
     # v = dataset[0]
     # dataset = [v]
 
-    # choose tracker
-    # tracker = 'BOOSTING'  # slow good
-    # tracker = 'KCF'  # fast bad
-    # tracker = 'MYTRACKER'  # with redefine
-    tracker = 'DEEP_SORT'  # deep sort
-
     # choose parameter
     detector_fired = 5
 
@@ -471,5 +416,5 @@ if __name__ == '__main__':
     OFFLINE = True
 
     # run
-    print(dataset, tracker, detector_fired)
-    evalMultiTracker(dataset, tracker, True, detector_fired)
+    print(dataset, detector_fired)
+    evalMultiTracker(dataset, display=True, DETECTOR_FIRED=detector_fired)

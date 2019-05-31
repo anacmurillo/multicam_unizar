@@ -9,8 +9,8 @@ import os
 import cv2
 
 from epfl_scripts.Utilities.colorUtility import getColors
-from epfl_scripts.Utilities.cv2Trackers import evaluateTracker, getTrackers
 from epfl_scripts.groundTruthParser import getGroundTruth, getVideo, getDatasets
+from epfl_scripts.trackers.cv2Trackers import evaluateTracker, getTrackers
 
 FOLDER = "videos/"
 

@@ -1,5 +1,5 @@
 """
-Functions and classes math and geometry related
+Functions and classes math and 2d geometry related
 """
 import math
 
@@ -210,3 +210,5 @@ def f_average(points, weights):
         ax += px * weight
         ay += py * weight
     return Point2D(ax, ay)
+
+

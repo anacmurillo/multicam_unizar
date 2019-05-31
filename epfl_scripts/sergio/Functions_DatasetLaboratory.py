@@ -368,7 +368,7 @@ def plot_matrix(DistMatrix, ImagesList, color, name, savingpath, vmin, vmax, sho
         fig.tight_layout()
         plt.show()
     else:
-        None
+        pass
 
     try:
         os.stat(savingpath)
@@ -378,7 +378,7 @@ def plot_matrix(DistMatrix, ImagesList, color, name, savingpath, vmin, vmax, sho
     if save == True:
         plt.savefig(savingpath + name)
     else:
-        None
+        pass
 
 
 # %%
@@ -626,7 +626,7 @@ def IstheSamePerson(BB_A, Mask_A, BB_B, Mask_B, boolean, functions):
     dist_g = functions.Calc_Distance(pA_g, pB_g)
     dist_r = functions.Calc_Distance(pA_r, pB_r)
 
-    data = [pA_ratio, pB_ratio, pA_shape, pB_shape, dist_b, dist_g, dist_r]
+    # data = [pA_ratio, pB_ratio, pA_shape, pB_shape, dist_b, dist_g, dist_r]
     data = {
         'pA_ratio': pA_ratio,
         'pB_ratio': pB_ratio,
