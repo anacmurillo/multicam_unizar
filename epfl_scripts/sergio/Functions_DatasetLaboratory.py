@@ -208,9 +208,9 @@ def Calc_Histogram_Simple_Norm(image, mascara, boolean):
     r_copy = np.zeros((256, 1), dtype=np.float32)
 
     for idx, bit in enumerate(zip(np.nditer(hist_blue), np.nditer(hist_green), np.nditer(hist_red))):
-        b_copy[idx, 0] = int(bit[0]) / module
-        g_copy[idx, 0] = int(bit[1]) / module
-        r_copy[idx, 0] = int(bit[2]) / module
+        b_copy[idx, 0] = int(bit[0]) / float(module)
+        g_copy[idx, 0] = int(bit[1]) / float(module)
+        r_copy[idx, 0] = int(bit[2]) / float(module)
 
     return b_copy, g_copy, r_copy  # histograms float32 y sumatorio = 1
 
@@ -224,21 +224,21 @@ def Calc_DistanceMatrix(vect1, vect2):
     :param vect2: vector de caracteristicas 2 (vector de N histogramas)
     :return: matrizDistancias: matriz de distancias obtenida
     """
-    tamaño_1 = len(vect1)
-    tamaño_2 = len(vect2)
+    tamano_1 = len(vect1)
+    tamano_2 = len(vect2)
 
-    if tamaño_1 != tamaño_2:
+    if tamano_1 != tamano_2:
         print("error en tamaños de vectores")
         return
     else:
-        matrizDistancias = np.empty((tamaño_1, tamaño_1))
+        matrizDistancias = np.empty((tamano_1, tamano_1))
 
         #        matrizDistancias = distance_matrix(vect1, vect2) #He probado con solo un vector de (256,1) que
         # es un unico histograma y tampoco funciona! --> NO FUNCIONA!
 
         i = 0
-        for i in range(tamaño_1):
-            for j in range(tamaño_2):
+        for i in range(tamano_1):
+            for j in range(tamano_2):
                 #        matrizDistancias[i,j] = cv2.compareHist(hist_vect[i][0],hist_vect[j][0],cv2.HISTCMP_BHATTACHARYYA)
                 matrizDistancias[i, j] = distance.euclidean(vect1[i], vect2[j])
             j = 0
@@ -260,10 +260,10 @@ def Calc_Distance(hist1, hist2):
     :param hist2: histograma 2
     :return: dist_value: valor en float32 de la distancia calculada
     """
-    tamaño_1 = len(hist1)
-    tamaño_2 = len(hist2)
+    tamano_1 = len(hist1)
+    tamano_2 = len(hist2)
 
-    if tamaño_1 != tamaño_2:
+    if tamano_1 != tamano_2:
         print("error en tamaños de vectores")
         return
     else:
@@ -507,7 +507,7 @@ def Calc_MaskRatio(img, boolean):
         mask = img
 
     module = cv2.countNonZero(mask)
-    ratio = module / np.size(mask)
+    ratio = module / float(np.size(mask))
 
     return ratio
 
@@ -522,7 +522,7 @@ def Calc_AspectRatio(img, boolean):
     :return: shape: altura/anchura en float
     """
     if boolean == True:
-        mask = cv2.imread(img, 0)  # leer imagen en escala de grises
+        mask = cv2.imread(img, cv2.IMREAD_GRAYSCALE)  # leer imagen en escala de grises
     else:
         mask = img
 
@@ -532,7 +532,7 @@ def Calc_AspectRatio(img, boolean):
         cnt = contours[0]
         x, y, w, h = cv2.boundingRect(cnt)
 
-        shape = h / w
+        shape = h / float(w)
         ret = True
     else:
         shape = 0
@@ -667,10 +667,10 @@ def PersonsInaFrame_Vall(frame_t, frame_t_menos1, boolean, functions):
     :param frame_t_menos1: [BB1, Mask1, BB2, Mask2, ..., npersons] en el instante (t-1)
     :param boolean: True or False, if True -> rutas images, if False -> images en BGR y masks en grayscale
     :param functions: fd de funciones
-    :return matrix: matriz del tamaño npersons_t x npersons_t_menos1 en int32
+    :return matrix: matriz del tamano npersons_t x npersons_t_menos1 en int32
     """
-    npersons_t = int(len(frame_t) / 2)
-    npersons_t_menos1 = int(len(frame_t_menos1) / 2)
+    npersons_t = int(len(frame_t) / 2.)
+    npersons_t_menos1 = int(len(frame_t_menos1) / 2.)
     matrix = np.zeros((npersons_t, npersons_t_menos1))
     data_results = []
 

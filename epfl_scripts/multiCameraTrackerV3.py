@@ -5,13 +5,15 @@ import sys
 
 import numpy as np
 
+import epfl_scripts.sergio.Functions_DatasetLaboratory as fdl
+from epfl_scripts.Utilities.MultiCameraVisor import MultiCameraVisor, NoVisor
 from epfl_scripts.Utilities.cache import cache_function
-from epfl_scripts.Utilities.colorUtility import getColors, C_GREY, C_WHITE, C_BLACK
-from epfl_scripts.Utilities.geometry2D_utils import f_iou, Bbox
-from epfl_scripts.Utilities.geometry3D_utils import f_averageCilinders
-from epfl_scripts.Utilities.geometryCam import f_similarCilinders, to3dCilinder, drawVisibilityLines, cropBbox
+from epfl_scripts.Utilities.colorUtility import getColors, C_GREY, C_WHITE, C_RED
+from epfl_scripts.Utilities.geometry2D_utils import f_iou, Bbox, Point2D
+from epfl_scripts.Utilities.geometry3D_utils import f_averageCylinders
+from epfl_scripts.Utilities.geometryCam import f_similarCylinders, to3dCylinder, cutImage, cropBbox
 from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets
-from epfl_scripts.trackers.cilinderTracker import CilinderTracker
+from epfl_scripts.trackers.cylinderTracker import CylinderTracker
 
 ### Imports ###
 try:
@@ -23,10 +25,7 @@ except Exception as e:
     print(e)
     from cachedDetectron import CachedDetectron as Detectron
 
-# import cv2
-import epfl_scripts.Utilities.cv2Visor as cv2
-
-cv2.configure(100)
+import cv2
 
 """
 Implementation of the algorithm. Main file
@@ -47,6 +46,7 @@ DETECTION_DIST = 50  # if a new point is closer than this to an existing point, 
 
 FRAMES_CHANGEID = 5  # if this number of frames passed wanting to change id, it is changed
 
+MAXTRACKERS = -1  # force N trackers at most. <0 to disable
 
 ### Functions
 
@@ -67,22 +67,22 @@ class Prediction:
         self.uniqueID = Prediction.NEXTUID
         Prediction.NEXTUID -= 1
 
-        self.redefineCilinder = None
+        self.redefineCylinder = None
 
-    def redefine(self, cilinder):
+    def redefine(self, cylinder):
         """
-        Marks the cilinder for the new measure step
-        :param cilinder:
+        Marks the cylinder for the new measure step
+        :param cylinder:
         :return:
         """
-        self.redefineCilinder = cilinder
+        self.redefineCylinder = cylinder
 
-    def updateCilinder(self, images):
+    def updateCylinder(self, images):
         """
         Runs the update step of the tracker
         """
 
-        self.trackerFound, _ = self.tracker.update(images, self.redefineCilinder)
+        self.trackerFound, _ = self.tracker.update(images, self.redefineCylinder)
 
     def setPersonIfRequired(self):
         """
@@ -118,13 +118,113 @@ class Prediction:
         more lost is worst
         we are worst iff we are similar, and we have lost it more
         """
-        return f_similarCilinders(self.tracker.getCilinder(), other.tracker.getCilinder()) \
+        return f_similarCylinders(self.tracker.getCylinder(), other.tracker.getCylinder()) \
                and self.framesLost > other.framesLost
+
+
+def createMaskFromImage(image):
+    return np.ones((image.shape[0], image.shape[1]), dtype=np.uint8) * 255
+
+
+def onlyUnique(detections, threshold=0.2):
+    uniques = []
+
+    for detection in detections:
+        valid = True
+        for detection2 in detections:
+            if detection == detection2: continue
+
+            if f_iou(detection, detection2) > threshold:
+                valid = False
+                break
+        if valid:
+            uniques.append(detection)
+
+    return uniques
 
 
 ### Main ###
 
-def estimateFromPredictions(predictions, detector, cameras, frames):
+def assignDetectorToPrediction(cameras, detector, predictions, frames, visor):
+    """
+    Main function for assignment.
+    Using image features
+    Returns detections not used
+    """
+    # persons = [prediction for prediction in predictions if prediction.person]
+    # targets = [prediction for prediction in predictions if not prediction.person]
+
+    detector = {camera: onlyUnique(detector[camera]) for camera in cameras}
+
+    detector_unused = {}
+    detector_BBM = {}
+    for camera in cameras:
+        # copy
+        detector_unused[camera] = detector[camera][:]
+
+        # create detection array
+        detector_BBM[camera] = []
+        for detection in detector[camera]:
+            image = cutImage(frames[camera], detection)
+            detector_BBM[camera].append((image, createMaskFromImage(image), detection))
+
+    for prediction in predictions:
+        bboxes = prediction.tracker.getBboxes()
+
+        # get all bboxes that correspond to this person
+        allCylinders = []
+        allWeights = []
+
+        for camera in cameras:
+            # for each camera
+
+            # compute BB and mask
+            BB_p = cutImage(frames[camera], bboxes[camera])
+            if BB_p is None: continue
+            mask_p = createMaskFromImage(BB_p)
+
+            # find the best bbox
+            best_detection = None
+            for BB_d, mask_d, detection in detector_BBM[camera]:
+
+                score, _ = fdl.IstheSamePerson(BB_d, mask_d, BB_p, mask_p, False, fdl)
+
+                if prediction.person:
+                    visor.drawText(str(score), camera, detection.getCenter())
+
+                if score == 7:
+                    if best_detection is None:
+                        best_detection = detection
+                    elif best_detection is not False:
+                        best_detection = False
+
+            # if good enough, use
+            if best_detection is not None and best_detection is not False:
+                # use the detection
+                allCylinders.append(to3dCylinder(camera, best_detection))
+                allWeights.append(1)
+
+                if best_detection in detector_unused[camera]: detector_unused[camera].remove(best_detection)
+
+                # show join
+                if prediction.person:
+                    visor.joinBboxes(bboxes[camera], best_detection, camera, color=(100, 0, 0), thickness=1)
+
+        if len(allCylinders) > 0:
+            # if cylinders to average, average
+            cylinder = f_averageCylinders(allCylinders, allWeights)
+
+            prediction.redefine(cylinder)
+
+            prediction.detectorFound = True
+        else:
+            # no cylinders found, lost
+            prediction.detectorFound = False
+
+    return detector_unused
+
+
+def estimateFromPredictions(predictions, detector, cameras, frames, visor):
     """
     Main function for processing
     """
@@ -133,54 +233,10 @@ def estimateFromPredictions(predictions, detector, cameras, frames):
     # for camera in cameras: ...
     # frames[camera] = frame
 
-    detector_unused = {}
-
     # phase 1: update bbox with detection (if available)
     if detector is not None:
         # assign detector instances to predictions
-
-        for camera in cameras:
-            detector_unused[camera] = detector[camera][:]  # copy
-
-        for prediction in predictions:
-            bboxes = prediction.tracker.getBboxes()
-
-            # get all bboxes that correspond to this person
-            allCilinders = []
-            allWeights = []
-
-            for camera in cameras:
-                # for each camera
-
-                # find the best bbox
-                best_simil = 0
-                best_detection = None
-                for detection in detector[camera]:
-
-                    simil = f_iou(bboxes[camera], detection)  # getSimilarity(bboxes[camera], detection)
-
-                    if simil > best_simil:
-                        best_simil = simil
-                        best_detection = detection
-
-                # if good enough, use
-                if best_simil > 0.5:
-                    # use the detection
-                    allCilinders.append(to3dCilinder(camera, best_detection))
-                    allWeights.append(best_simil)
-
-                    if best_detection in detector_unused[camera]: detector_unused[camera].remove(best_detection)
-
-            if len(allCilinders) > 0:
-                # if cilinders to average, average
-                cilinder = f_averageCilinders(allCilinders, allWeights)
-
-                prediction.redefine(cilinder)
-
-                prediction.detectorFound = True
-            else:
-                # no cilinders found, lost
-                prediction.detectorFound = False
+        detector = assignDetectorToPrediction(cameras, detector, predictions, frames, visor)
 
     for prediction in predictions[:]:
         # phase 2.1: remove if lost enough times
@@ -191,22 +247,26 @@ def estimateFromPredictions(predictions, detector, cameras, frames):
     if detector is not None:
         # for each bbox
         for camera in cameras:
-            for bbox in detector_unused[camera]:
+            for bbox in detector[camera]:
                 group = {camera: bbox}
-                cilinder = to3dCilinder(camera, bbox)
+                cylinder = to3dCylinder(camera, bbox)
                 # find other similar in other cameras
                 for camera2 in cameras:
                     if camera == camera2: continue
-                    for bbox2 in detector_unused[camera2][:]:
-                        if f_similarCilinders(cilinder, to3dCilinder(camera2, bbox2)):
+                    for bbox2 in detector[camera2][:]:
+                        if f_similarCylinders(cylinder, to3dCylinder(camera2, bbox2)):
                             group[camera2] = bbox2
-                            detector_unused[camera2].remove(bbox2)
+                            detector[camera2].remove(bbox2)
 
                 # create new tracker
-                tracker = CilinderTracker(cameras)
+                tracker = CylinderTracker(cameras)
                 tracker.init(frames, group)
-                # if len(predictions) >= 5: break # debug to keep 5 trackers at most
+                if MAXTRACKERS >= 0 and len(predictions) >= MAXTRACKERS: break  # debug to keep N trackers at most
                 predictions.append(Prediction(tracker))
+
+                for camera in cameras:
+                    if camera in group:
+                        visor.drawBbox(group[camera], camera, color=C_RED, thickness=2)
 
     # phase 4: remove duplicated trackers
     uniquePredictions = []
@@ -242,10 +302,8 @@ def evalMultiTracker(groupDataset, display=True, DETECTOR_FIRED=5):
     # get detector
     detector = Detectron()
 
-    # floor
-    frame_floor = None
-    if display:
-        frame_floor = np.zeros((512, 512, 3), np.uint8)
+    # Visor
+    visor = MultiCameraVisor(groupDataset, WIN_NAME, WINF_NAME) if display else NoVisor
 
     # initialize videos
     videos = {}
@@ -269,10 +327,6 @@ def evalMultiTracker(groupDataset, display=True, DETECTOR_FIRED=5):
             print("Cannot read video file for dataset", dataset)
             sys.exit()
 
-        if display:
-            # draw floor visibility lines
-            drawVisibilityLines(frame, frame_floor, dataset)
-
     # initialize detection set
     data_detected = {}
     for dataset in groupDataset:
@@ -281,20 +335,16 @@ def evalMultiTracker(groupDataset, display=True, DETECTOR_FIRED=5):
     # initialize predictions
     predictions = []
 
-    # initialize windows
-    cv2.namedWindow(WIN_NAME)
-    cv2.moveWindow(WIN_NAME, 0, 0)
-    cv2.namedWindow(WINF_NAME)
-    cv2.moveWindow(WINF_NAME, 0, frames[groupDataset[0]].shape[1] + 100)
-
     # loop
     frame_index = 0
     allOk = True
     while allOk:
 
+        visor.setFrames(frames)
+
         # parse trackers
         for prediction in predictions:
-            prediction.updateCilinder(frames)
+            prediction.updateCylinder(frames)
 
         # run detector
         if frame_index % DETECTOR_FIRED == 0:
@@ -303,18 +353,14 @@ def evalMultiTracker(groupDataset, display=True, DETECTOR_FIRED=5):
                 results = detector.evaluateImage(frames[dataset], str(dataset) + " - " + str(frame_index))
                 detector_results[dataset] = [Bbox.XmYmXMYM(result[0], result[1], result[2], result[3]) for result in results]
 
-            # show detections
-            if display:
-                for dataset in groupDataset:
-                    for bbox in detector_results[dataset]:
-                        tl = (int(bbox.xmin), int(bbox.ymin))
-                        br = (int(bbox.xmax), int(bbox.ymax))
-                        cv2.rectangle(frames[dataset], tl, br, C_GREY, 1, 1)
+                # show detections
+                for bbox in detector_results[dataset]:
+                    visor.drawBbox(bbox, dataset, color=C_GREY)
         else:
             detector_results = None
 
         # merge all predictions -> estimations
-        estimations = estimateFromPredictions(predictions, detector_results, groupDataset, frames)
+        estimations = estimateFromPredictions(predictions, detector_results, groupDataset, frames, visor)
 
         # compute detections
         for estimation in estimations:
@@ -328,50 +374,21 @@ def evalMultiTracker(groupDataset, display=True, DETECTOR_FIRED=5):
                 if estimation.person:
                     data_detected[dataset][frame_index][estimation.uniqueID] = bbox.getAsXmYmXMYM()  # xmin, ymin, xmax, ymax
 
-                # show bbox
-                if display:
-                    # label = "{0}:{1}:{2}".format(id, estimations[dataset][id].framesLost, estimations[dataset][id].newid)
-                    label = "{0}:{1}".format(estimation.uniqueID, estimation.framesLost)
-                    tl = (int(bbox.xmin), int(bbox.ymin))
-                    br = (int(bbox.xmax), int(bbox.ymax))
-                    cl = (int(bbox.xmin), int(bbox.ymin + bbox.height / 2))
-                    color = colors[estimation.uniqueID % len(colors)] if estimation.person else C_WHITE
-                    cv2.rectangle(frames[dataset], tl, br, color, 2 if estimation.person else 1, 1)
-                    cv2.putText(frames[dataset], label, cl, cv2.FONT_HERSHEY_SIMPLEX, 0.4 if estimation.person else 0.35, color, 1)
+            # show cylinders
+            color = colors[estimation.uniqueID % len(colors)] if estimation.person else C_WHITE
+            label = "{0}:{1}".format(estimation.uniqueID, estimation.framesLost)
+            thickness = 2 if estimation.person else 1
+            visor.drawCylinder(estimation.tracker.getCylinder(), text=label, color=color, thickness=thickness)
 
-        if display:
-            # Display result
-            concatenatedFrames = None
-            for dataset in groupDataset:
-                if concatenatedFrames is None:
-                    concatenatedFrames = frames[dataset]
-                else:
-                    concatenatedFrames = np.hstack((concatenatedFrames, frames[dataset]))
-            cv2.imshow(WIN_NAME, concatenatedFrames)
+        # draw frame index
+        visor.drawText(str(frame_index), visor.FLOOR, Point2D(0, 512), size=2)
 
-            # display overview
-            frame = frame_floor.copy()
-            for estimation in estimations:
-                color = colors[estimation.uniqueID % len(colors)] if estimation.person else C_WHITE
-                thick = 2 if estimation.person else 1
+        # show and wait
+        visor.showAll()
+        if visor.getKey() & 0xff == 27:
+            break
 
-                # each center
-                center = estimation.tracker.getCilinder().getCenter()
-                x, y = center.getAsXY()
-                cv2.drawMarker(frame, (int(x), int(y)), C_BLACK, 3, 4)
-                cv2.drawMarker(frame, (int(x), int(y)), color, 0, 2)
-
-                # with radius
-                radius = estimation.tracker.getCilinder().getWidth()
-                cv2.circle(frame, (int(x), int(y)), int(radius), color, thickness=1, lineType=8)
-
-            cv2.putText(frame, str(frame_index), (0, 512), cv2.FONT_HERSHEY_SIMPLEX, 1, C_WHITE, 2)
-            cv2.imshow(WINF_NAME, frame)
-            # /end display overview
-
-            if cv2.waitKey(1) & 0xff == 27:
-                break
-        else:
+        if not display:
             # show progress
             # if sys.stdout.isatty():
             sys.stdout.write("\r" + str(frame_index) + "/" + str(nframes) + "     ")
@@ -389,9 +406,6 @@ def evalMultiTracker(groupDataset, display=True, DETECTOR_FIRED=5):
 
     # clean
     print("")
-    if display:
-        cv2.destroyWindow(WIN_NAME)
-        cv2.destroyWindow(WINF_NAME)
 
     for dataset in groupDataset:
         videos[dataset].release()
@@ -410,7 +424,7 @@ if __name__ == '__main__':
     # dataset = [v]
 
     # choose parameter
-    detector_fired = 5
+    detector_fired = 1
 
     # offline
     OFFLINE = True

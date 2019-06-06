@@ -1,11 +1,10 @@
 """
 Functions and classes math and camera-geometry related
 """
-import cv2
-
+from epfl_scripts.Utilities import cv2Visor as cv2
 from epfl_scripts.Utilities.colorUtility import C_GREY
-from epfl_scripts.Utilities.geometry2D_utils import f_euclidian, f_multiply, f_multiplyInv, f_add, f_subtract, Point2D, Bbox
-from epfl_scripts.Utilities.geometry3D_utils import Cilinder
+from epfl_scripts.Utilities.geometry2D_utils import f_euclidian, f_multiply, f_multiplyInv, f_add, f_subtract, Point2D, Bbox, f_area, f_intersection
+from epfl_scripts.Utilities.geometry3D_utils import Cylinder
 from epfl_scripts.groundTruthParser import getCalibrationMatrixFull, getCalibrationMatrix
 
 DIST_THRESHOLD = 20  # minimum dist to assign a detection to a prediction (in floor plane coordinates)
@@ -13,18 +12,18 @@ HEIGHT_THRESHOLD = 0.5
 WIDTH_THRESHOLD = 0.5
 
 
-def f_similarCilinders(a, b):
+def f_similarCylinders(a, b):
     """
-    Return true iff the cilinders are similar (almost-same center, almost-same width and almost-same height)
+    Return true iff the cylinders are similar (almost-same center, almost-same width and almost-same height)
     """
     return f_euclidian(a.getCenter(), b.getCenter()) < DIST_THRESHOLD \
            and abs(a.getWidth() - b.getWidth()) < WIDTH_THRESHOLD \
            and abs(a.getHeight() - b.getHeight()) < HEIGHT_THRESHOLD
 
 
-def to3dCilinder(camera, bbox):
+def to3dCylinder(camera, bbox):
     """
-    Converts a bbox from the specified camera image coordinates to a cilinder in floor plane
+    Converts a bbox from the specified camera image coordinates to a cylinder in floor plane
     """
     groundCalib, (headType, headCalib), headHeight, _ = getCalibrationMatrixFull(camera)
 
@@ -43,20 +42,20 @@ def to3dCilinder(camera, bbox):
     # lets assume it is lineal (it is not, but with very little difference)
     height = headHeight * (bbox.getHair().getAsXY()[1] - feetY) / (headY - feetY) if headY != feetY else 0
 
-    return Cilinder(groundP, width, height)
+    return Cylinder(groundP, width, height)
 
 
-def from3dCilinder(camera, cilinder):
+def from3dCylinder(camera, cylinder):
     """
-    Converts a cilinder in floor plane to a bbox from the specified camera image coordinates
+    Converts a cylinder in floor plane to a bbox from the specified camera image coordinates
     """
     groundCalib, (headType, headCalib), headHeight, _ = getCalibrationMatrixFull(camera)
 
-    center = cilinder.getCenter()
+    center = cylinder.getCenter()
 
     bottom = f_multiplyInv(groundCalib, center)
 
-    cwidth = cilinder.getWidth()
+    cwidth = cylinder.getWidth()
 
     # width = f_euclidian(f_multiplyInv(groundCalib, f_add(center, Point2D(0, cwidth))), bottom) + f_euclidian(f_multiplyInv(groundCalib, f_add(center, Point2D(cwidth, 0))), bottom)  # this is not exactly right...but should be close enough...no, it is not
 
@@ -64,9 +63,9 @@ def from3dCilinder(camera, cilinder):
     # -> take the bounding box center
     # -> add an horizontal vector (any, here (10,0))
     # -> translate the point to the floor
-    # -> create the vector from the cilinder center to this point (subtracting points)
-    # -> normalize the vector to the width of the cilinder
-    # -> add the vector the cilinder center (so that the new point is on the circle)
+    # -> create the vector from the cylinder center to this point (subtracting points)
+    # -> normalize the vector to the width of the cylinder
+    # -> add the vector the cylinder center (so that the new point is on the circle)
     # -> invtranslate to the image
     # -> measure the distance to the bbox center
     # -> multiply by 2
@@ -81,7 +80,7 @@ def from3dCilinder(camera, cilinder):
         raise AttributeError("Unknown calibration parameter: " + headType)
 
     # lets assume it is lineal (it is not, but with very little difference)
-    height = (bottom.getAsXY()[1] - topY) * cilinder.getHeight() / headHeight
+    height = (bottom.getAsXY()[1] - topY) * cylinder.getHeight() / headHeight
 
     return Bbox.FeetWH(bottom, width, height, heightReduced=True)
 
@@ -138,5 +137,15 @@ def cropBbox(bbox, frame):
     height, width, colors = frame.shape
 
     # (0 <= roi.x && 0 <= roi.width && roi.x + roi.width <= m.cols && 0 <= roi.y && 0 <= roi.height && roi.y + roi.height <= m.rows)
+    return Bbox.XmYmXMYM(*toInt(f_intersection(bbox, Bbox.XmYmWH(0, 0, width, height)).getAsXmYmXMYM()))
 
-    return Bbox.XmYmXMYM(max(round(bbox.xmin), 0), max(round(bbox.ymin), 0), min(round(bbox.xmax), width), min(round(bbox.ymax), height))
+
+def cutImage(image, bbox):
+    """
+    Returns the path of the image under the rounded bbox
+    """
+    bboxC = cropBbox(bbox, image)
+    if f_area(bboxC) > 0:
+        return image[bboxC.ymin:bboxC.ymax + 1, bboxC.xmin:bboxC.xmax + 1]
+    else:
+        return None

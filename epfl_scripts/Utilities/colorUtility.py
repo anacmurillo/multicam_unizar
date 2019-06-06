@@ -5,9 +5,13 @@
 
 import colorsys  # generate colors
 
+# BGR format
 C_WHITE = (255, 255, 255)
 C_BLACK = (0, 0, 0)
 C_GREY = (100, 100, 100)
+C_RED = (0, 0, 255)
+C_GREEN = (0, 255, 0)
+C_BLUE = (255, 0, 0)
 
 
 def getColors(n):

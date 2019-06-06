@@ -19,17 +19,17 @@ chi2inv95 = {
     9: 16.919}
 
 
-class KalmanFilterCilinder(object):
+class KalmanFilterCylinder(object):
     """
-    A simple Kalman filter for tracking cilinders.
+    A simple Kalman filter for tracking cylinders.
 
     The 8-dimensional state space
 
         x, y, w, h, vx, vy
 
-    contains the cilinder center position (x, y) and their respective velocities (vx, vy), width=radius w, height h.
+    contains the cylinder center position (x, y) and their respective velocities (vx, vy), width=radius w, height h.
 
-    Object motion follows a constant velocity model. The cilinder properties
+    Object motion follows a constant velocity model. The cylinder properties
     (x, y, w, h) is taken as direct observation of the state space (linear
     observation model).
 
@@ -56,7 +56,7 @@ class KalmanFilterCilinder(object):
         Parameters
         ----------
         measurement : ndarray
-            Cilinder coordinates (x, y, w, h) with center position (x, y),
+            Cylinder coordinates (x, y, w, h) with center position (x, y),
             width w, and height h.
 
         Returns
@@ -157,7 +157,7 @@ class KalmanFilterCilinder(object):
         measurement : ndarray
             The 4 dimensional measurement vector (x, y, w, h), where (x, y)
             is the center position, w the width, and h the height of the
-            cilinder.
+            cylinder.
 
         Returns
         -------

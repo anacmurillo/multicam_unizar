@@ -6,7 +6,7 @@ import numpy as np
 from epfl_scripts.Utilities.geometry2D_utils import f_average, Point2D
 
 
-class Cilinder:
+class Cylinder:
     def __init__(self, center, width, height):
         self.center = center
         self.width = width
@@ -39,16 +39,16 @@ class Cilinder:
         self.height = height
 
 
-def f_averageCilinders(cilinders, weights):
+def f_averageCylinders(cylinders, weights):
     points = []
     widths = []
     heights = []
 
-    for cilinder in cilinders:
-        points.append(cilinder.getCenter())
-        widths.append(cilinder.getWidth())
-        heights.append(cilinder.getHeight())
+    for cylinder in cylinders:
+        points.append(cylinder.getCenter())
+        widths.append(cylinder.getWidth())
+        heights.append(cylinder.getHeight())
 
-    return Cilinder(f_average(points, weights), np.average(widths, weights=weights), np.average(heights, weights=weights))
+    return Cylinder(f_average(points, weights), np.average(widths, weights=weights), np.average(heights, weights=weights))
 
 

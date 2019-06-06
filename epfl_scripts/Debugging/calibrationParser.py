@@ -7,12 +7,12 @@ Internal debugging utility, no real usage.
 import sys
 
 import cv2
-import numpy as np
 
-from epfl_scripts.Utilities.colorUtility import C_GREY, C_WHITE
-from epfl_scripts.Utilities.geometry2D_utils import f_multiply, Point2D, f_multiplyInv, Bbox, f_add, f_subtract
-from epfl_scripts.Utilities.geometryCam import to3dCilinder, from3dCilinder, toInt, prepareBboxForDisplay, drawVisibilityLines
-from epfl_scripts.groundTruthParser import getGroupedDatasets, getVideo, getCalibrationMatrix, getCalibrationMatrixFull
+from epfl_scripts.Utilities.MultiCameraVisor import MultiCameraVisor
+from epfl_scripts.Utilities.colorUtility import C_GREY, C_GREEN, C_BLUE, C_RED
+from epfl_scripts.Utilities.geometry2D_utils import f_multiply, Point2D, Bbox, f_add, f_subtract
+from epfl_scripts.Utilities.geometryCam import to3dCylinder
+from epfl_scripts.groundTruthParser import getGroupedDatasets, getVideo, getCalibrationMatrix
 
 FLOOR = '__floor__'
 
@@ -25,8 +25,8 @@ class Data:
         self.bbox = None
         self.bbox_dataset = None
 
-        # 3d cilinder output
-        self.cilinder = None
+        # 3d cylinder output
+        self.cylinder = None
 
         # 3d mouse point
         self.mouse = None
@@ -44,30 +44,30 @@ class Data:
     def pointOnFloor(self, p):
         self.bbox_dataset = None
         self.points = None
-        if self.cilinder is not None:
-            self.cilinder.setCenter(p)
+        if self.cylinder is not None:
+            self.cylinder.setCenter(p)
 
     def pointOnDataset(self, dataset, p):
         if self.bbox is not None:
             self.bbox_dataset = dataset
             self.bbox = Bbox.FeetWH(p, self.bbox.width, self.bbox.height)
-            self.refreshCilinder()
+            self.refreshCylinder()
 
             # draw horizontal point
             matrix = getCalibrationMatrix(dataset)
-            center = self.cilinder.getCenter()
-            cwidth = self.cilinder.getWidth()
+            center = self.cylinder.getCenter()
+            cwidth = self.cylinder.getWidth()
 
             self.points = [f_add(f_subtract(f_multiply(matrix, f_add(p, Point2D(10, 0))), center).normalize(cwidth), center)]
 
-    def refreshCilinder(self):
-        self.cilinder = to3dCilinder(self.bbox_dataset, self.bbox)
+    def refreshCylinder(self):
+        self.cylinder = to3dCylinder(self.bbox_dataset, self.bbox)
 
     def startDrag(self, dataset, p):
         x, y = p.getAsXY()
         self.bbox = Bbox.XmYmWH(x, y, 0, 0)
         self.bbox_dataset = dataset
-        self.refreshCilinder()
+        self.refreshCylinder()
 
     def drag(self, dataset, p):
         if dataset != self.bbox_dataset:
@@ -77,17 +77,18 @@ class Data:
             self.bbox.changeXmax(x)
             self.bbox.changeYmax(y)
             self.bbox_dataset = dataset
-            self.refreshCilinder()
+            self.refreshCylinder()
 
 
-class MultiVisor:
+class CalibrationParser:
 
     def __init__(self, groupDataset):
 
         # init variables
-        self.frames = {FLOOR: np.zeros((512, 512, 3), np.uint8)}
+        self.Visor = MultiCameraVisor(groupDataset, "Cameras", "Floor")
         self.data = Data()
         self.groupDataset = groupDataset
+        self.frames = {}
 
         # initialize frames
         for dataset in groupDataset:
@@ -107,42 +108,36 @@ class MultiVisor:
             self.frames[dataset] = frame
             video.release()
 
-            # draw visible lines
-            drawVisibilityLines(frame, self.frames[FLOOR], dataset)
+        self.Visor.setFrames(self.frames)
 
-            # show
-            cv2.imshow(dataset, self.frames[dataset])
-            cv2.setMouseCallback(dataset, self.clickEvent, dataset)
-        cv2.imshow(FLOOR, self.frames[FLOOR])
-        cv2.setMouseCallback(FLOOR, self.clickEvent, FLOOR)
-        self.updateViews()
+        # callback
+        self.Visor.setCallback(self.clickEvent)
 
+        # loop
         while True:
-            k = cv2.waitKey(0)
+
+            self.updateViews()
+
+            k = self.Visor.getKey(0)
             if k == 27:
                 break
             elif k == 83 or k == 100:  # right || d
-                self.width += 0.05
+                pass
             elif k == 81 or k == 97:  # left || a
-                t_width = self.width - 0.05
-                if t_width > 0: self.width = t_width
+                pass
             elif k == 82 or k == 119:  # up || w
-                self.height += 0.05
+                pass
             elif k == 84 or k == 115:  # down || s
-                t_height = self.height - 0.05
-                if t_height > 0: self.height = t_height
-            self.updateViews()
-
-        cv2.destroyAllWindows()
+                pass
 
     def clickEvent(self, event, x, y, flags, dataset):
         # print event, flags
 
         if event == cv2.EVENT_MBUTTONUP:
             # debug
-            bboxFrom = self.data.bbox
-            cilinderMedium = to3dCilinder(dataset, bboxFrom)
-            bboxTo = from3dCilinder(dataset, cilinderMedium)
+            # bboxFrom = self.data.bbox
+            # cylinderMedium = to3dCylinder(dataset, bboxFrom)
+            # bboxTo = from3dCylinder(dataset, cylinderMedium)
             pass
 
         p = Point2D(x, y)
@@ -163,78 +158,33 @@ class MultiVisor:
 
     def updateViews(self):
 
-        for dataset in self.groupDataset:
-            # each dataset
-            frame = self.frames[dataset].copy()
+        self.Visor.setFrames(self.frames, copy=True)
 
-            groundM, (headT, headP), headH, distMul = getCalibrationMatrixFull(dataset)
+        # input bbox
+        if self.data.bbox is not None and self.data.bbox_dataset is not None:
+            self.Visor.drawBbox(self.data.bbox, self.data.bbox_dataset, color=C_RED, thickness=3)
 
-            if self.data.bbox is not None and self.data.bbox_dataset == dataset:
-                # draw the input bbox
-                lt, rb = prepareBboxForDisplay(self.data.bbox)
-                cv2.rectangle(frame, lt, rb, (0, 0, 255), 3, 1)
+        # cylinder
+        if self.data.cylinder is not None:
+            self.Visor.drawCylinder(self.data.cylinder, color=C_BLUE, thickness=1)
 
-            if self.data.cilinder is not None:
-                # draw the cilinder bbox
-                bbox = from3dCilinder(dataset, self.data.cilinder)
-                lt, rb = prepareBboxForDisplay(bbox)
-                cv2.rectangle(frame, lt, rb, (255, 0, 0), 1, 1)
-
-            if self.data.mouse is not None:
-                # draw the mouse point
-                point = self.data.mouse
-
-                # bottom point
-                px, py = f_multiplyInv(groundM, point).getAsXY()
-                cv2.drawMarker(frame, (int(px), int(py)), C_WHITE, 1, 1, 5)
-
-                # top point
-                if headT == 'm':
-                    ppx, ppy = f_multiplyInv(headP, point).getAsXY()
-                elif headT == 'h':
-                    ppx, ppy = px, headP
-                else:
-                    raise AttributeError("Unknown calibration parameter: " + headT)
-                cv2.drawMarker(frame, (int(ppx), int(ppy)), C_GREY, 1, 1, 5)
-
-            if self.data.points is not None:
-                # draw other points
-                for point in self.data.points:
-                    px, py = f_multiplyInv(groundM, point).getAsXY()
-                    cv2.drawMarker(frame, (int(px), int(py)), C_GREY, 1, 1, 5)
-
-            cv2.imshow(dataset, frame)
-
-        # floor
-        frame = self.frames[FLOOR].copy()
-        if self.data.cilinder is not None:
-            # draw cilinder
-            px, py = toInt(self.data.cilinder.getCenter().getAsXY())
-            point = toInt((px, py))
-            cv2.circle(frame, point, int(self.data.cilinder.width), C_WHITE, thickness=1, lineType=8)
-
-            height = toInt((px, py - self.data.cilinder.height * 25))
-            cv2.line(frame, point, height, C_WHITE, 1, 1)
-
+        # draw the mouse point
         if self.data.mouse is not None:
-            # draw mouse point
-            point = toInt(self.data.mouse.getAsXY())
-            cv2.drawMarker(frame, point, C_WHITE, 1, 1, 5)
+            self.Visor.drawFloorPoint(self.data.mouse, color=C_GREEN, thickness=5, drawHeadPoint=True)
 
+        # draw other points
         if self.data.points is not None:
-            # draw other points
             for point in self.data.points:
-                point = toInt(point.getAsXY())
-                cv2.drawMarker(frame, point, C_GREY, 1, 1, 5)
+                self.Visor.drawFloorPoint(point, color=C_GREY, thickness=5)
 
-        cv2.imshow(FLOOR, frame)
+        self.Visor.showAll()
 
 
 if __name__ == '__main__':
-    MultiVisor(getGroupedDatasets()['Laboratory/6p'])
+    CalibrationParser(getGroupedDatasets()['Laboratory/6p'])
 
     # list = getGroupedDatasets().values()
     # list.reverse()
     # for dataset in list:
     #     print(dataset)
-    #     MultiVisor(dataset)
+    #     CalibrationParser(dataset)

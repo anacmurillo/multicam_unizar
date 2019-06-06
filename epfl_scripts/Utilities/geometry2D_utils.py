@@ -45,8 +45,14 @@ class Bbox:
     def getAsXmYmWH(self):
         return self.xmin, self.ymin, self.width, self.height
 
-    def getCenter(self):
-        return Point2D(self.xmin + self.width / 2., self.ymin + self.height / 2.)
+    def getCenter(self, dx=0, dy=0):
+        """
+        Returns the center of the bounding box
+        :param dx: horizontal offset. -1=left, 0=center, 1=right
+        :param dy: vertical offset. -1=top. 0=center, 1=right
+        :return:
+        """
+        return Point2D(self.xmin + self.width * (1+dx) / 2., self.ymin + self.height * (1+dy) / 2.)
 
     def getFeet(self, deviation=0):
         """
