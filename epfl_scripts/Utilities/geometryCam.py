@@ -1,6 +1,8 @@
 """
 Functions and classes math and camera-geometry related
 """
+import numpy as np
+
 from epfl_scripts.Utilities import cv2Visor as cv2
 from epfl_scripts.Utilities.colorUtility import C_GREY
 from epfl_scripts.Utilities.geometry2D_utils import f_euclidian, f_multiply, f_multiplyInv, f_add, f_subtract, Point2D, Bbox, f_area, f_intersection
@@ -149,3 +151,7 @@ def cutImage(image, bbox):
         return image[bboxC.ymin:bboxC.ymax + 1, bboxC.xmin:bboxC.xmax + 1]
     else:
         return None
+
+
+def createMaskFromImage(image):
+    return np.ones((image.shape[0], image.shape[1]), dtype=np.uint8) * 255

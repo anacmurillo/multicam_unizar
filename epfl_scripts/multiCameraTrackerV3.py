@@ -3,15 +3,13 @@ from __future__ import print_function
 import os
 import sys
 
-import numpy as np
-
 import epfl_scripts.sergio.Functions_DatasetLaboratory as fdl
 from epfl_scripts.Utilities.MultiCameraVisor import MultiCameraVisor, NoVisor
 from epfl_scripts.Utilities.cache import cache_function
-from epfl_scripts.Utilities.colorUtility import getColors, C_GREY, C_WHITE, C_RED
+from epfl_scripts.Utilities.colorUtility import getColors, C_GREY, C_WHITE, C_RED, blendColors, C_BLACK
 from epfl_scripts.Utilities.geometry2D_utils import f_iou, Bbox, Point2D
 from epfl_scripts.Utilities.geometry3D_utils import f_averageCylinders
-from epfl_scripts.Utilities.geometryCam import f_similarCylinders, to3dCylinder, cutImage, cropBbox
+from epfl_scripts.Utilities.geometryCam import f_similarCylinders, to3dCylinder, cutImage, cropBbox, createMaskFromImage
 from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets
 from epfl_scripts.trackers.cylinderTracker import CylinderTracker
 
@@ -46,7 +44,8 @@ DETECTION_DIST = 50  # if a new point is closer than this to an existing point, 
 
 FRAMES_CHANGEID = 5  # if this number of frames passed wanting to change id, it is changed
 
-MAXTRACKERS = -1  # force N trackers at most. <0 to disable
+MAXTRACKERS = 2  # force N trackers at most. <0 to disable
+
 
 ### Functions
 
@@ -54,8 +53,9 @@ class Prediction:
     """
     Represents a tracker of a person (or not)
     """
-    NEXTPERSONUID = 0
+    NEXTPERSONUID = 2
     NEXTUID = -1
+    colors = getColors(12)
 
     def __init__(self, tracker):
         self.tracker = tracker
@@ -116,17 +116,20 @@ class Prediction:
         """
         returns true iff we are worst than other
         more lost is worst
+        smaller id is worst
         we are worst iff we are similar, and we have lost it more
         """
+
         return f_similarCylinders(self.tracker.getCylinder(), other.tracker.getCylinder()) \
-               and self.framesLost > other.framesLost
+               and (self.framesLost > other.framesLost
+                    or (self.framesLost == other.framesLost and self.uniqueID < other.uniqueID)
+                    )
+
+    def getColor(self):
+        return self.colors[self.uniqueID % len(self.colors)] if self.person else C_WHITE
 
 
-def createMaskFromImage(image):
-    return np.ones((image.shape[0], image.shape[1]), dtype=np.uint8) * 255
-
-
-def onlyUnique(detections, threshold=0.2):
+def onlyUnique(detections, threshold=0):
     uniques = []
 
     for detection in detections:
@@ -190,9 +193,9 @@ def assignDetectorToPrediction(cameras, detector, predictions, frames, visor):
                 score, _ = fdl.IstheSamePerson(BB_d, mask_d, BB_p, mask_p, False, fdl)
 
                 if prediction.person:
-                    visor.drawText(str(score), camera, detection.getCenter())
+                    visor.drawText(str(score), camera, detection.getCenter(), color=prediction.getColor())
 
-                if score == 7:
+                if score == 7 and f_iou(detection, bboxes[camera]) > 0.2:
                     if best_detection is None:
                         best_detection = detection
                     elif best_detection is not False:
@@ -208,7 +211,7 @@ def assignDetectorToPrediction(cameras, detector, predictions, frames, visor):
 
                 # show join
                 if prediction.person:
-                    visor.joinBboxes(bboxes[camera], best_detection, camera, color=(100, 0, 0), thickness=1)
+                    visor.joinBboxes(bboxes[camera], best_detection, camera, color=blendColors(prediction.getColor(), C_BLACK), thickness=1)
 
         if len(allCylinders) > 0:
             # if cylinders to average, average
@@ -286,7 +289,7 @@ def estimateFromPredictions(predictions, detector, cameras, frames, visor):
     return predictions
 
 
-@cache_function("evalMultiTracker_{0}_{DETECTOR_FIRED}", lambda _gd, display, DETECTOR_FIRED: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 8)
+@cache_function("evalMultiTracker_{0}_{DETECTOR_FIRED}", lambda _gd, display, DETECTOR_FIRED: cache_function.TYPE_DISABLE if display else cache_function.TYPE_NORMAL, 10)
 def evalMultiTracker(groupDataset, display=True, DETECTOR_FIRED=5):
     """
     Main
@@ -296,14 +299,11 @@ def evalMultiTracker(groupDataset, display=True, DETECTOR_FIRED=5):
     detector_fired, cada cuantos frames ejecutar el detector
     """
 
-    # colors
-    colors = getColors(12)
-
     # get detector
     detector = Detectron()
 
     # Visor
-    visor = MultiCameraVisor(groupDataset, WIN_NAME, WINF_NAME) if display else NoVisor
+    visor = MultiCameraVisor(groupDataset, WIN_NAME, WINF_NAME) if display else NoVisor()
 
     # initialize videos
     videos = {}
@@ -362,11 +362,14 @@ def evalMultiTracker(groupDataset, display=True, DETECTOR_FIRED=5):
         # merge all predictions -> estimations
         estimations = estimateFromPredictions(predictions, detector_results, groupDataset, frames, visor)
 
+        # initialize output
+        for dataset in groupDataset:
+            data_detected[dataset][frame_index] = {}
+
         # compute detections
         for estimation in estimations:
             bboxes = estimation.tracker.getBboxes()
             for dataset in groupDataset:
-                data_detected[dataset][frame_index] = {}
 
                 bbox = cropBbox(bboxes[dataset], frames[dataset])
                 if bbox is None: continue
@@ -375,7 +378,7 @@ def evalMultiTracker(groupDataset, display=True, DETECTOR_FIRED=5):
                     data_detected[dataset][frame_index][estimation.uniqueID] = bbox.getAsXmYmXMYM()  # xmin, ymin, xmax, ymax
 
             # show cylinders
-            color = colors[estimation.uniqueID % len(colors)] if estimation.person else C_WHITE
+            color = estimation.getColor()
             label = "{0}:{1}".format(estimation.uniqueID, estimation.framesLost)
             thickness = 2 if estimation.person else 1
             visor.drawCylinder(estimation.tracker.getCylinder(), text=label, color=color, thickness=thickness)
@@ -410,7 +413,7 @@ def evalMultiTracker(groupDataset, display=True, DETECTOR_FIRED=5):
     for dataset in groupDataset:
         videos[dataset].release()
 
-    return frame_index, range(Prediction.NEXTUID), data_detected
+    return frame_index, range(Prediction.NEXTPERSONUID), data_detected
 
 
 if __name__ == '__main__':

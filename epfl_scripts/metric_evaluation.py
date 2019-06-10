@@ -14,7 +14,7 @@ import numpy as np
 
 from epfl_scripts.Utilities.colorUtility import getColors, blendColors
 from epfl_scripts.groundTruthParser import getGroundTruth, getGroupedDatasets
-from epfl_scripts.multiCameraTrackerV2 import evalMultiTracker
+from epfl_scripts.multiCameraTrackerV3 import evalMultiTracker
 from epfl_scripts.trackers.cv2Trackers import evaluateTracker, getTrackers
 
 
@@ -30,7 +30,7 @@ def evaluateMetrics(dataset, tracker):
 
 
 def evaluateMetricsGroup(groupDataset, tracker, toFile=None, detector=5):
-    n_frames, n_ids, data = evalMultiTracker(groupDataset, tracker, False, detector)
+    n_frames, n_ids, data = evalMultiTracker(groupDataset, False, detector)
 
     metricsAll = {}
 

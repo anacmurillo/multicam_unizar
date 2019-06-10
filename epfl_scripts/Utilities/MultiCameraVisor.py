@@ -37,6 +37,10 @@ class MultiCameraVisor:
             cv2.destroyWindow(winname)
 
     def setFrames(self, frames, copy=False):
+        """
+        Sets the frames as the background, resets all previous modifications
+        If copy is True the frames will be copied (otherwise when drawing things they will be drawn to the passed frame)
+        """
 
         # set camera images
         for camera in self.cameras:
@@ -52,6 +56,14 @@ class MultiCameraVisor:
         self.frames[self.FLOOR] = self.floorEmpty.copy()
 
     def setCallback(self, callback):
+        """
+        Sets the callback for mouse events.
+        The callback must be a fucntions with the following parameters (evt, x, y, flg, dataset) where
+        evt = which event
+        x,y = position of the event
+        flg = flags of the event
+        dataset = dataset where the event occurred
+        """
         cv2.setMouseCallback(self.floorName, callback, self.FLOOR)
 
         def convert(evt, x, y, flg, _):
@@ -67,6 +79,9 @@ class MultiCameraVisor:
         cv2.setMouseCallback(self.cameraName, convert)
 
     def showAll(self):
+        """
+        Draws the current saved frames to the screen
+        """
         # Display cameras
         concatenatedFrames = None
         for camera in self.cameras:
@@ -80,17 +95,46 @@ class MultiCameraVisor:
         cv2.imshow(self.floorName, self.frames[self.FLOOR])
 
     def getKey(self, delay=1):
+        """
+        smae as cv2.waitKey
+        :param delay: time to wait for checking keys (0=foreeeever)
+        :return: the pressed key (or -1 if timeout)
+        """
         return cv2.waitKey(delay)
 
     def drawBbox(self, bbox, camera, text=None, color=C_WHITE, thickness=1):
+        """
+        Draws a bounding box in the specified
+        :param bbox: Bounding box to draw
+        :param camera: which camera to draw into
+        :param text: [optional] text to draw inside the bounding box
+        :param color: color of the bounding box
+        :param thickness: thickness of the bounding box
+        """
         lt, rb = prepareBboxForDisplay(bbox)
         cv2.rectangle(self.frames[camera], lt, rb, color, thickness, 1)
-        if text is not None: self.drawText(text, camera, Point2D(lt[0], lt[1] / 2 + rb[1] / 2), color, thickness / 5.)
+        if text is not None: self.drawText(text, camera, Point2D(lt[0], rb[1]), color, thickness / 5.)
 
     def drawText(self, text, camera, point, color=C_WHITE, size=1.):
+        """
+        Draws a text
+        :param text: Text to draw
+        :param camera: which camera to draw into (use this.FLOOR for floor)
+        :param point: Bottom-left position of the text
+        :param color: color of the bounding box
+        :param size: size of the text
+        """
+        text = str(text)
         cv2.putText(self.frames[camera], text, toInt(point.getAsXY()), cv2.FONT_HERSHEY_SIMPLEX, size, color, 1)
 
     def drawCylinder(self, cylinder, text=None, color=C_WHITE, thickness=1):
+        """
+        Draws a cylinder. A circle with a line in the floor, and bounding boxes in the cameras.
+        :param cylinder: Cylinder to draw
+        :param text: [optional] text to draw inside the bounding boxes (not the circle)
+        :param color: color of the circle and the bounding boxes
+        :param thickness: thickness of the circle and the bounding boxes
+        """
         # draw bboxes
         for camera in self.cameras:
             self.drawBbox(from3dCylinder(camera, cylinder), camera, text, color, thickness)
@@ -105,6 +149,13 @@ class MultiCameraVisor:
         cv2.line(self.frames[self.FLOOR], point, height, color, thickness, 1)
 
     def drawFloorPoint(self, point, color=C_WHITE, thickness=1, drawHeadPoint=False):
+        """
+        Draws a point in the floor and the cameras.
+        :param point: Point to draw (in floor coordinates)
+        :param color: color of the points
+        :param thickness: thickness of the points
+        :param drawHeadPoint: if true, the head point will also be drawed in the cameras (point from the same x,y but from the head plane
+        """
         # point in cameras
         for camera in self.cameras:
 
@@ -129,9 +180,25 @@ class MultiCameraVisor:
         cv2.drawMarker(self.frames[self.FLOOR], pointfloor, color, 1, 1, thickness)
 
     def drawLine(self, point1, point2, camera, color=C_WHITE, thickness=1):
+        """
+        Draws a line
+        :param point1: One end of the line
+        :param point2: The other end of the line
+        :param camera: which camera to draw into
+        :param color: color of the line
+        :param thickness: thickness of the line
+        """
         cv2.line(self.frames[camera], toInt(point1.getAsXY()), toInt(point2.getAsXY()), color, 1, thickness)
 
     def joinBboxes(self, bbox1, bbox2, camera, color=C_WHITE, thickness=1):
+        """
+        Draws a line between each corner of the two bounding boxes
+        :param bbox1: One bounding box
+        :param bbox2: The other bounding box
+        :param camera: which camera to draw into
+        :param color: color of the line
+        :param thickness: thickness of the lines
+        """
         for dx, dy in [(1, 1), (1, -1), (-1, -1), (-1, 1)]:
             self.drawLine(bbox1.getCenter(dx, dy), bbox2.getCenter(dx, dy), camera, color, thickness)
 
@@ -141,7 +208,9 @@ class NoVisor:
     Does nothing, use as a 'no display' Visor
     """
 
-    def __init__(self, cameras, cameraName, floorName):
+    FLOOR = None
+
+    def __init__(self):
         pass
 
     def __del__(self):
@@ -156,13 +225,16 @@ class NoVisor:
     def showAll(self):
         pass
 
-    def waitKey(self, delay=0):
+    def getKey(self, delay=0):
         return -1
 
-    def drawBbox(self, bbox, camera, color=C_WHITE, thickness=1):
+    def drawText(self, text, camera, point, color=C_WHITE, size=1.):
         pass
 
-    def drawCylinder(self, cylinder, color=C_WHITE, thickness=1):
+    def drawBbox(self, bbox, camera, text=None, color=C_WHITE, thickness=1):
+        pass
+
+    def drawCylinder(self, cylinder, text, color=C_WHITE, thickness=1):
         pass
 
     def drawFloorPoint(self, point, color=C_WHITE, thickness=1, drawHeadPoint=False):

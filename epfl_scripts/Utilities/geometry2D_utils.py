@@ -52,7 +52,7 @@ class Bbox:
         :param dy: vertical offset. -1=top. 0=center, 1=right
         :return:
         """
-        return Point2D(self.xmin + self.width * (1+dx) / 2., self.ymin + self.height * (1+dy) / 2.)
+        return Point2D(self.xmin + self.width * (1 + dx) / 2., self.ymin + self.height * (1 + dy) / 2.)
 
     def getFeet(self, deviation=0):
         """
@@ -193,16 +193,19 @@ def f_multiplyInv(invmatrix, p):
     return f_multiply(np.linalg.inv(invmatrix), p)
 
 
-def f_average(points, weights):
+def f_average(points, weights=None):
     """
     :return: average point of the list of :param points: using :param weights: (both should be same length)
     :param points:
-    :param weights:
+    :param weights: if None, same as all '1's
     :return:
     """
     n = len(points)
     if n == 0:
         return None
+
+    if weights is None:
+        weights = [1] * n
 
     minw = min(weights)
     weights = [x - minw + 1 for x in weights]
@@ -216,5 +219,3 @@ def f_average(points, weights):
         ax += px * weight
         ay += py * weight
     return Point2D(ax, ay)
-
-
