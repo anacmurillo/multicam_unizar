@@ -526,7 +526,7 @@ def Calc_AspectRatio(img, boolean):
     else:
         mask = img
 
-    image, contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     if len(contours) == 1:
         cnt = contours[0]

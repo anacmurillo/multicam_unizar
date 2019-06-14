@@ -2,9 +2,9 @@ import numpy as np
 
 # import cv2
 import epfl_scripts.Utilities.cv2Visor as cv2
-from epfl_scripts.Utilities.colorUtility import C_WHITE
-from epfl_scripts.Utilities.geometry2D_utils import f_multiplyInv, Point2D
-from epfl_scripts.Utilities.geometryCam import from3dCylinder, drawVisibilityLines, toInt, prepareBboxForDisplay
+from epfl_scripts.Utilities.colorUtility import C_WHITE, invColor, blendColors
+from epfl_scripts.Utilities.geometry2D_utils import f_multiplyInv, Point2D, f_area
+from epfl_scripts.Utilities.geometryCam import from3dCylinder, drawVisibilityLines, toInt, prepareBboxForDisplay, cropBbox
 from epfl_scripts.groundTruthParser import getCalibrationMatrixFull
 
 cv2.configure(100)
@@ -125,6 +125,7 @@ class MultiCameraVisor:
         :param size: size of the text
         """
         text = str(text)
+        cv2.putText(self.frames[camera], text, toInt(point.getAsXY()), cv2.FONT_HERSHEY_SIMPLEX, size, blendColors(color, invColor(color)), 2)
         cv2.putText(self.frames[camera], text, toInt(point.getAsXY()), cv2.FONT_HERSHEY_SIMPLEX, size, color, 1)
 
     def drawCylinder(self, cylinder, text=None, color=C_WHITE, thickness=1):
@@ -201,6 +202,12 @@ class MultiCameraVisor:
         """
         for dx, dy in [(1, 1), (1, -1), (-1, -1), (-1, 1)]:
             self.drawLine(bbox1.getCenter(dx, dy), bbox2.getCenter(dx, dy), camera, color, thickness)
+
+    def drawImage(self, image, bbox, camera):
+        bbox = cropBbox(bbox, self.frames[camera])
+
+        if f_area(bbox) > 0:
+            self.frames[camera][bbox.ymin:bbox.ymax + 1, bbox.xmin:bbox.xmax + 1] = image
 
 
 class NoVisor:

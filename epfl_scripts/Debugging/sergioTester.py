@@ -10,7 +10,7 @@ import cv2
 
 import epfl_scripts.sergio.Functions_DatasetLaboratory as fdl
 from epfl_scripts.Utilities.MultiCameraVisor import MultiCameraVisor
-from epfl_scripts.Utilities.colorUtility import C_RED
+from epfl_scripts.Utilities.colorUtility import C_RED, C_GREEN
 from epfl_scripts.Utilities.geometry2D_utils import Point2D, Bbox
 from epfl_scripts.Utilities.geometryCam import createMaskFromImage, cutImage
 from epfl_scripts.groundTruthParser import getGroupedDatasets, getVideo
@@ -153,10 +153,16 @@ class CalibrationParser:
         self.Visor[0].drawText(score, self.Visor[0].FLOOR, Point2D(0, 512), size=10)
 
         pos = 510. / len(data)
+        thresholds = {'pA_ratio':0.3, 'pB_ratio':0.3, 'pB_shape':1.5, 'pA_shape':1.5, 'dist_r':-0.05, 'dist_g':-0.05, 'dist_b':-0.05}
         for k in sorted(data):
             text = k + "=" + str(data[k])
-            self.Visor[1].drawText(text, self.Visor[1].FLOOR, Point2D(0, pos), size=1)
+            valid = data[k] > thresholds[k] if thresholds[k] > 0 else data[k] < -thresholds[k]
+            self.Visor[1].drawText(text, self.Visor[1].FLOOR, Point2D(0, pos), size=1, color=C_GREEN if valid else C_RED)
             pos += 510. / len(data)
+
+        # draw patches
+        self.Visor[0].drawImage(cv2.bitwise_or(imageA, imageA, mask=maskA), bboxA, datasetA)
+        self.Visor[1].drawImage(cv2.bitwise_or(imageB, imageB, mask=maskB), bboxB, datasetB)
 
         for i in (0, 1):
             self.Visor[i].showAll()

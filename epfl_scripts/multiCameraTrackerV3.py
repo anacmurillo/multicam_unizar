@@ -7,7 +7,7 @@ import epfl_scripts.sergio.Functions_DatasetLaboratory as fdl
 from epfl_scripts.Utilities.MultiCameraVisor import MultiCameraVisor, NoVisor
 from epfl_scripts.Utilities.cache import cache_function
 from epfl_scripts.Utilities.colorUtility import getColors, C_GREY, C_WHITE, C_RED, blendColors, C_BLACK
-from epfl_scripts.Utilities.geometry2D_utils import f_iou, Bbox, Point2D
+from epfl_scripts.Utilities.geometry2D_utils import f_iou, Bbox, Point2D, f_euclidian
 from epfl_scripts.Utilities.geometry3D_utils import f_averageCylinders
 from epfl_scripts.Utilities.geometryCam import f_similarCylinders, to3dCylinder, cutImage, cropBbox, createMaskFromImage
 from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets
@@ -36,15 +36,11 @@ WINF_NAME = WIN_NAME + "_overview"
 
 FRAMES_LOST = 25  # maximum number of frames until the detection is removed
 
-FRAMES_PERSON = 50  # after this number of frames with at least one camera tracking a target (id<0), it is assigned as person (id>=0)
+FRAMES_PERSON = 15  # after this number of frames with at least one camera tracking a target (id<0), it is assigned as person (id>=0)
 
-CLOSEST_DIST = 20  # if an existing point is closer than this to a different point id, it is assigned that same id (in floor plane coordinates)
-FARTHEST_DIST = 50  # if an existing point is farther than the rest of the group, it is removed (in floor plane coordinates)
-DETECTION_DIST = 50  # if a new point is closer than this to an existing point, it is assigned the same id (in floor plane coordinates)
+MAXTRACKERS = 6  # force N trackers at most. <0 to disable
 
-FRAMES_CHANGEID = 5  # if this number of frames passed wanting to change id, it is changed
-
-MAXTRACKERS = 2  # force N trackers at most. <0 to disable
+MAX_DIST = 35
 
 
 ### Functions
@@ -53,7 +49,7 @@ class Prediction:
     """
     Represents a tracker of a person (or not)
     """
-    NEXTPERSONUID = 2
+    NEXTPERSONUID = 0
     NEXTUID = -1
     colors = getColors(12)
 
@@ -183,6 +179,7 @@ def assignDetectorToPrediction(cameras, detector, predictions, frames, visor):
 
             # compute BB and mask
             BB_p = cutImage(frames[camera], bboxes[camera])
+            cylinder_p = to3dCylinder(camera, bboxes[camera])
             if BB_p is None: continue
             mask_p = createMaskFromImage(BB_p)
 
@@ -198,20 +195,28 @@ def assignDetectorToPrediction(cameras, detector, predictions, frames, visor):
                 if score == 7 and f_iou(detection, bboxes[camera]) > 0.2:
                     if best_detection is None:
                         best_detection = detection
+
+                        # remove from unused
+                        if best_detection in detector_unused[camera]: detector_unused[camera].remove(best_detection)
                     elif best_detection is not False:
                         best_detection = False
 
             # if good enough, use
             if best_detection is not None and best_detection is not False:
                 # use the detection
-                allCylinders.append(to3dCylinder(camera, best_detection))
-                allWeights.append(1)
+                cilynder = to3dCylinder(camera, best_detection)
+                dist = f_euclidian(cilynder.getCenter(), cylinder_p.getCenter())
 
-                if best_detection in detector_unused[camera]: detector_unused[camera].remove(best_detection)
+                if dist < MAX_DIST:
+                    # only near ones
+                    allCylinders.append(cilynder)
+                    allWeights.append(1. / (1+dist))
 
-                # show join
-                if prediction.person:
-                    visor.joinBboxes(bboxes[camera], best_detection, camera, color=blendColors(prediction.getColor(), C_BLACK), thickness=1)
+                    # show join
+                    if prediction.person:
+                        visor.joinBboxes(bboxes[camera], best_detection, camera, color=blendColors(prediction.getColor(), C_BLACK), thickness=1)
+                else:
+                    print (dist)
 
         if len(allCylinders) > 0:
             # if cylinders to average, average
@@ -278,8 +283,12 @@ def estimateFromPredictions(predictions, detector, cameras, frames, visor):
         for prediction2 in predictions:
             if prediction.isWorstThan(prediction2):
                 keep = False
+                # deleted
+                if prediction.person:
+                    print("deleted person because it is worst than ", prediction2.uniqueID)
         if keep:
             uniquePredictions.append(prediction)
+
     predictions = uniquePredictions
 
     # phase 5: set target as person if tracked continuously
@@ -428,9 +437,6 @@ if __name__ == '__main__':
 
     # choose parameter
     detector_fired = 1
-
-    # offline
-    OFFLINE = True
 
     # run
     print(dataset, detector_fired)

@@ -40,3 +40,12 @@ def blendColors(a, b, t=0.5):
     """
     # return (math.sqrt((1 - t) * x**2 + t * y**2) for x, y in zip(a, b))
     return tuple((1 - t) * x + t * y for x, y in zip(a, b))
+
+
+def invColor(c):
+    """
+    Returns the inverse color (255-c)
+    :param c: original color
+    :return: inverse color of c
+    """
+    return tuple(255 - i for i in c)

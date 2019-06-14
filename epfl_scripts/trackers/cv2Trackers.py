@@ -86,7 +86,7 @@ def getTracker(tracker_type):
 
         return DeepSortTracker()
 
-    if int(cv2.__version__.split('.')[1]) < 3:
+    if int(cv2.__version__.split('.')[1]) < -3:
         tracker = cv2.Tracker_create(tracker_type)
     else:
         if tracker_type == 'BOOSTING':

@@ -26,7 +26,7 @@ class MyTracker:
         intbbox = tuple(int(bbox[i]) for i in range(4))
         return True, intbbox
 
-    def redefine(self, newbbox):
+    def redefine(self, newbbox, _):
         # diff = new - prev = new - ( last - diff ) = new - last + diff
         self.diff = tuple(newbbox[i] - self.lastBbox[i] + self.diff[i] for i in range(4))
         self.lastBbox = newbbox

@@ -468,6 +468,13 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
     for dataset in groupDataset:
         predictions[dataset] = {}
 
+    # display
+    # initialize windows
+    cv2.namedWindow(WIN_NAME)
+    cv2.moveWindow(WIN_NAME, 0, 0)
+    cv2.namedWindow(WIN_NAME + "_overview")
+    cv2.moveWindow(WIN_NAME + "_overview", 0, 1000)
+
     # loop
     frame_index = 0
     allOk = True

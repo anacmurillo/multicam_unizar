@@ -9,7 +9,7 @@ from epfl_scripts.Utilities.geometry2D_utils import f_euclidian, f_multiply, f_m
 from epfl_scripts.Utilities.geometry3D_utils import Cylinder
 from epfl_scripts.groundTruthParser import getCalibrationMatrixFull, getCalibrationMatrix
 
-DIST_THRESHOLD = 20  # minimum dist to assign a detection to a prediction (in floor plane coordinates)
+DIST_THRESHOLD = 10  # minimum dist to assign a detection to a prediction (in floor plane coordinates)
 HEIGHT_THRESHOLD = 0.5
 WIDTH_THRESHOLD = 0.5
 
@@ -154,4 +154,12 @@ def cutImage(image, bbox):
 
 
 def createMaskFromImage(image):
-    return np.ones((image.shape[0], image.shape[1]), dtype=np.uint8) * 255
+    # return np.ones((image.shape[0], image.shape[1]), dtype=np.uint8) * 255
+
+    cols, rows, _ = image.shape
+
+    mask = np.zeros((cols, rows), dtype=np.uint8)
+    # create a white filled ellipse
+    mask = cv2.ellipse(mask, center=(rows / 2, cols / 2), axes=(rows/2, cols/2), angle=0, startAngle=0, endAngle=360, color=(255, 255, 255), thickness=-1)
+
+    return mask
