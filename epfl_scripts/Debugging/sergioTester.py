@@ -62,9 +62,13 @@ class CalibrationParser:
         self.Visor = [MultiCameraVisor(groupDataset, "CamerasA", "FloorA"), MultiCameraVisor(groupDataset, "CamerasB", "FloorB")]
         self.data = [Data(), Data()]
         self.groupDataset = groupDataset
-        self.frames = {}
+        self.frames = [{}, {}]
+        self.indexes = [0, 0]
+        self.length = 0
+        self.videos = {}
+        self.lastdataset = 0
 
-        # initialize frames
+        # initialize videos
         for dataset in groupDataset:
             video = getVideo(dataset)
 
@@ -73,17 +77,13 @@ class CalibrationParser:
                 print("Could not open video for dataset", dataset)
                 sys.exit()
 
-            # Read first frame.
-            video.set(cv2.CAP_PROP_POS_FRAMES, 1000)
-            ok, frame = video.read()
-            if not ok:
-                print("Cannot read video file")
-                sys.exit()
-            self.frames[dataset] = frame
-            video.release()
+            self.videos[dataset] = video
+            self.length = int(getVideo(dataset).get(cv2.CAP_PROP_FRAME_COUNT))
 
         for i in [0, 1]:
-            self.Visor[i].setFrames(self.frames)
+            # init frames
+            self.updateFrames(0)
+            self.updateFrames(1)
 
             # callback
             self.Visor[i].setCallback(lambda event, x, y, flags, dataset, li=i: self.clickEvent(li, event, x, y, flags, dataset))
@@ -93,21 +93,39 @@ class CalibrationParser:
 
             self.updateViews()
             k = self.Visor[0].getKey(0)
+
+            frame_index = self.indexes[self.lastdataset]
             if k == 27:
                 break
             elif k == 83 or k == 100:  # right || d
-                pass
+                frame_index += 1
             elif k == 81 or k == 97:  # left || a
-                pass
+                frame_index -= 1
             elif k == 82 or k == 119:  # up || w
-                pass
+                frame_index += 10
             elif k == 84 or k == 115:  # down || s
-                pass
+                frame_index -= 10
+            elif k == 101:  # e
+                frame_index += 100
+            elif k == 113:  # q
+                frame_index -= 100
+            elif k == 80:  # start
+                frame_index = 0
+            elif k == 87:  # end
+                frame_index = self.length - 1
+            elif 49 <= k <= 57:  # 1-9
+                frame_index = int(self.length * (k - 48) / 10.)
+
+            frame_index = max(0, min(self.length - 1, frame_index))
+            if frame_index != self.indexes[self.lastdataset]:
+                self.indexes[self.lastdataset] = frame_index
+                self.updateFrames(self.lastdataset)
 
     def clickEvent(self, ab, event, x, y, flags, dataset):
         # print event, flags
         # print ab
 
+        self.lastdataset = ab
         p = Point2D(x, y)
 
         if dataset == FLOOR:
@@ -125,13 +143,22 @@ class CalibrationParser:
 
     def updateViews(self):
         for i in (0, 1):
-            self.Visor[i].setFrames(self.frames, copy=True)
+            self.Visor[i].setFrames(self.frames[i], copy=True)
             self.data[i].draw(self.Visor[i], C_RED)
 
         self.computeSimilarity()
 
         for i in (0, 1):
             self.Visor[i].showAll()
+
+    def updateFrames(self, i):
+        for dataset in self.groupDataset:
+            self.videos[dataset].set(cv2.CAP_PROP_POS_FRAMES, self.indexes[i])
+            ok, frame = self.videos[dataset].read()
+            if not ok:
+                print("Cannot read video file, dataset=", dataset, ",frame=", self.frames[i])
+                sys.exit()
+            self.frames[i][dataset] = frame
 
     def computeSimilarity(self):
         # get bboxes
@@ -142,8 +169,8 @@ class CalibrationParser:
             return
 
         # get patches
-        imageA = cutImage(self.frames[datasetA], bboxA)
-        imageB = cutImage(self.frames[datasetB], bboxB)
+        imageA = cutImage(self.frames[0][datasetA], bboxA)
+        imageB = cutImage(self.frames[1][datasetB], bboxB)
 
         if imageA is None or imageB is None:
             return
@@ -160,6 +187,8 @@ class CalibrationParser:
         self.Visor[0].drawText(score, self.Visor[0].FLOOR, Point2D(0, 512), size=10, color=C_GREEN if valid else C_RED)
         if valid:
             for i in (0, 1): self.data[i].draw(self.Visor[i], C_GREEN)
+            # cv2.imshow("test1", cv2.bitwise_or(imageA, imageA, mask=maskA))
+            # cv2.imshow("test2", cv2.bitwise_or(imageB, imageB, mask=maskB))
 
         # draw data
         pos = 510. / len(data)
@@ -173,6 +202,7 @@ class CalibrationParser:
         # draw masks
         self.Visor[0].drawImage(cv2.bitwise_or(imageA, imageA, mask=maskA), bboxA, datasetA)
         self.Visor[1].drawImage(cv2.bitwise_or(imageB, imageB, mask=maskB), bboxB, datasetB)
+
 
 if __name__ == '__main__':
     CalibrationParser(getGroupedDatasets()['Laboratory/6p'])
