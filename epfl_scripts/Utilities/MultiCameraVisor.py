@@ -210,45 +210,24 @@ class MultiCameraVisor:
             self.frames[camera][bbox.ymin:bbox.ymax + 1, bbox.xmin:bbox.xmax + 1] = image
 
 
-class NoVisor:
+class NoVisor(object):
     """
     Does nothing, use as a 'no display' Visor
     """
 
-    FLOOR = None
+    FLOOR = None  # unfortunately static things can't be placed in a super function
 
-    def __init__(self):
-        pass
+    @staticmethod
+    def __global(attr):
+        # functions that return something, otherwise return None
+        returns = {'getKey': -1}
 
-    def __del__(self):
-        pass
+        return lambda *args, **kwargs: returns.get(attr)
 
-    def setFrames(self, frames, copy=False):
-        pass
-
-    def setCallback(self, callback):
-        pass
-
-    def showAll(self):
-        pass
-
-    def getKey(self, delay=0):
-        return -1
-
-    def drawText(self, text, camera, point, color=C_WHITE, size=1.):
-        pass
-
-    def drawBbox(self, bbox, camera, text=None, color=C_WHITE, thickness=1):
-        pass
-
-    def drawCylinder(self, cylinder, text, color=C_WHITE, thickness=1):
-        pass
-
-    def drawFloorPoint(self, point, color=C_WHITE, thickness=1, drawHeadPoint=False):
-        pass
-
-    def drawLine(self, point1, point2, camera, color=C_WHITE, thickness=1):
-        pass
-
-    def joinBboxes(self, bbox1, bbox2, camera, color=C_WHITE, thickness=1):
-        pass
+    def __getattr__(self, attr):
+        try:
+            # existent parameter (something from python)
+            return super(NoVisor, self).__getattr__(attr)
+        except AttributeError:
+            # something nonexistent (something from us)
+            return self.__global(attr)

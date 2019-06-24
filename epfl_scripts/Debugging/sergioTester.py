@@ -45,10 +45,10 @@ class Data:
             self.bbox.changeYmax(y)
             self.bbox_dataset = dataset
 
-    def draw(self, visor):
+    def draw(self, visor, color):
         # input bbox
         if self.bbox is not None and self.bbox_dataset is not None:
-            visor.drawBbox(self.bbox, self.bbox_dataset, color=C_RED, thickness=3)
+            visor.drawBbox(self.bbox, self.bbox_dataset, color=color, thickness=3)
 
     def getBbox(self):
         return self.bbox, self.bbox_dataset
@@ -88,7 +88,6 @@ class CalibrationParser:
             # callback
             self.Visor[i].setCallback(lambda event, x, y, flags, dataset, li=i: self.clickEvent(li, event, x, y, flags, dataset))
 
-
         # loop
         while True:
 
@@ -124,49 +123,56 @@ class CalibrationParser:
                 self.data[ab].pointOnDataset(dataset, p)
                 self.updateViews()
 
-
     def updateViews(self):
         for i in (0, 1):
             self.Visor[i].setFrames(self.frames, copy=True)
-            self.data[i].draw(self.Visor[i])
+            self.data[i].draw(self.Visor[i], C_RED)
+
+        self.computeSimilarity()
+
+        for i in (0, 1):
             self.Visor[i].showAll()
 
+    def computeSimilarity(self):
+        # get bboxes
         bboxA, datasetA = self.data[0].getBbox()
         bboxB, datasetB = self.data[1].getBbox()
 
         if bboxA is None or bboxB is None:
             return
 
-        # show similarity
+        # get patches
         imageA = cutImage(self.frames[datasetA], bboxA)
         imageB = cutImage(self.frames[datasetB], bboxB)
 
         if imageA is None or imageB is None:
             return
 
+        # get masks
         maskA = createMaskFromImage(imageA)
         maskB = createMaskFromImage(imageB)
 
+        # compute similarity
         score, data = fdl.IstheSamePerson(imageA, maskA, imageB, maskB, False, fdl)
 
-        print score, data
-        self.Visor[0].drawText(score, self.Visor[0].FLOOR, Point2D(0, 512), size=10)
+        # draw score
+        valid = score == 7
+        self.Visor[0].drawText(score, self.Visor[0].FLOOR, Point2D(0, 512), size=10, color=C_GREEN if valid else C_RED)
+        if valid:
+            for i in (0, 1): self.data[i].draw(self.Visor[i], C_GREEN)
 
+        # draw data
         pos = 510. / len(data)
-        thresholds = {'pA_ratio':0.3, 'pB_ratio':0.3, 'pB_shape':1.5, 'pA_shape':1.5, 'dist_r':-0.05, 'dist_g':-0.05, 'dist_b':-0.05}
+        thresholds = {'pA_ratio': 0.3, 'pB_ratio': 0.3, 'pB_shape': 1.5, 'pA_shape': 1.5, 'dist_r': -0.05, 'dist_g': -0.05, 'dist_b': -0.05}
         for k in sorted(data):
             text = k + "=" + str(data[k])
             valid = data[k] > thresholds[k] if thresholds[k] > 0 else data[k] < -thresholds[k]
             self.Visor[1].drawText(text, self.Visor[1].FLOOR, Point2D(0, pos), size=1, color=C_GREEN if valid else C_RED)
             pos += 510. / len(data)
 
-        # draw patches
+        # draw masks
         self.Visor[0].drawImage(cv2.bitwise_or(imageA, imageA, mask=maskA), bboxA, datasetA)
         self.Visor[1].drawImage(cv2.bitwise_or(imageB, imageB, mask=maskB), bboxB, datasetB)
-
-        for i in (0, 1):
-            self.Visor[i].showAll()
-
 
 if __name__ == '__main__':
     CalibrationParser(getGroupedDatasets()['Laboratory/6p'])
