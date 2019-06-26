@@ -1,6 +1,9 @@
 """
-Allows to view the calibration on the datasets.
-Moving the mouse on one camera places a point on the same spot on other cameras, based on the calibration matrix.
+Allows to view the Functions_DatasetLaboratory similarity between two functions dinamically
+Use Q,W,E,A,S,D,0,1,2,3,4,5,6,7,8,9,START,END to advance/rewind the videos
+Draw from top-left to bottom-right corner to create rectangles
+Middle-mouse press and drag to move the rectangle
+F5 to reload the module
 
 Internal debugging utility, no real usage.
 """
@@ -14,6 +17,12 @@ from epfl_scripts.Utilities.colorUtility import C_RED, C_GREEN
 from epfl_scripts.Utilities.geometry2D_utils import Point2D, Bbox
 from epfl_scripts.Utilities.geometryCam import createMaskFromImage, cutImage
 from epfl_scripts.groundTruthParser import getGroupedDatasets, getVideo
+
+
+def reloadModule():
+    # reloads the module
+    reload(fdl)
+
 
 FLOOR = '__floor__'
 
@@ -88,10 +97,10 @@ class CalibrationParser:
             # callback
             self.Visor[i].setCallback(lambda event, x, y, flags, dataset, li=i: self.clickEvent(li, event, x, y, flags, dataset))
 
+        self.updateViews()
         # loop
         while True:
 
-            self.updateViews()
             k = self.Visor[0].getKey(0)
 
             frame_index = self.indexes[self.lastdataset]
@@ -115,11 +124,16 @@ class CalibrationParser:
                 frame_index = self.length - 1
             elif 49 <= k <= 57:  # 1-9
                 frame_index = int(self.length * (k - 48) / 10.)
+            elif k == 194: # F5
+                reloadModule()
+                self.updateViews()
 
             frame_index = max(0, min(self.length - 1, frame_index))
             if frame_index != self.indexes[self.lastdataset]:
                 self.indexes[self.lastdataset] = frame_index
                 self.updateFrames(self.lastdataset)
+
+                self.updateViews()
 
     def clickEvent(self, ab, event, x, y, flags, dataset):
         # print event, flags

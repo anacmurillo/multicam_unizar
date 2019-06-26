@@ -3,7 +3,8 @@ import csv
 import cv2
 import numpy as np
 
-from epfl_scripts.groundTruthParser import getDatasets, getVideo, getSuperDetector
+from epfl_scripts.cachedDetectron import getSuperDetector
+from epfl_scripts.groundTruthParser import getDatasets, getVideo
 from epfl_scripts.oneTime_scripts.frameExtractor import createFolder
 
 

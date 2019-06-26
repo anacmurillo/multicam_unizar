@@ -136,7 +136,7 @@ def cropBbox(bbox, frame):
     """
     if bbox is None: return None
 
-    height, width, colors = frame.shape
+    height, width = frame.shape[:2]
 
     # (0 <= roi.x && 0 <= roi.width && roi.x + roi.width <= m.cols && 0 <= roi.y && 0 <= roi.height && roi.y + roi.height <= m.rows)
     return Bbox.XmYmXMYM(*toInt(f_intersection(bbox, Bbox.XmYmWH(0, 0, width, height)).getAsXmYmXMYM()))

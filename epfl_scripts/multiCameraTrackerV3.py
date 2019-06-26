@@ -9,7 +9,7 @@ from epfl_scripts.Utilities.cache import cache_function
 from epfl_scripts.Utilities.colorUtility import getColors, C_GREY, C_WHITE, C_RED, blendColors, C_BLACK
 from epfl_scripts.Utilities.geometry2D_utils import f_iou, Bbox, Point2D, f_euclidian
 from epfl_scripts.Utilities.geometry3D_utils import f_averageCylinders
-from epfl_scripts.Utilities.geometryCam import f_similarCylinders, to3dCylinder, cutImage, cropBbox, createMaskFromImage
+from epfl_scripts.Utilities.geometryCam import f_similarCylinders, to3dCylinder, cutImage, cropBbox
 from epfl_scripts.groundTruthParser import getVideo, getGroupedDatasets
 from epfl_scripts.trackers.cylinderTracker import CylinderTracker
 
@@ -126,18 +126,24 @@ class Prediction:
 
 
 def onlyUnique(detections, threshold=0):
+    """
+    Filters the detections and returns only those whose iou with the others are less_or_equal than the threshold
+    :param detections:
+    :param threshold:
+    :return:
+    """
     uniques = []
 
-    for detection in detections:
+    for detection, _mask in detections:
         valid = True
-        for detection2 in detections:
+        for detection2, _mask2 in detections:
             if detection == detection2: continue
 
             if f_iou(detection, detection2) > threshold:
                 valid = False
                 break
         if valid:
-            uniques.append(detection)
+            uniques.append((detection, _mask))
 
     return uniques
 
@@ -163,9 +169,9 @@ def assignDetectorToPrediction(cameras, detector, predictions, frames, visor):
 
         # create detection array
         detector_BBM[camera] = []
-        for detection in detector[camera]:
+        for detection, mask in detector[camera]:
             image = cutImage(frames[camera], detection)
-            detector_BBM[camera].append((image, createMaskFromImage(image), detection))
+            detector_BBM[camera].append((image, mask, detection))
 
     for prediction in predictions:
         bboxes = prediction.tracker.getBboxes()
@@ -181,11 +187,12 @@ def assignDetectorToPrediction(cameras, detector, predictions, frames, visor):
             BB_p = cutImage(frames[camera], bboxes[camera])
             cylinder_p = to3dCylinder(camera, bboxes[camera])
             if BB_p is None: continue
-            mask_p = createMaskFromImage(BB_p)
 
             # find the best bbox
             best_detection = None
             for BB_d, mask_d, detection in detector_BBM[camera]:
+
+                mask_p = cv2.resize(mask_d, BB_p.shape[1::-1], interpolation=cv2.INTER_NEAREST)
 
                 score, _ = fdl.IstheSamePerson(BB_d, mask_d, BB_p, mask_p, False, fdl)
 
@@ -193,6 +200,7 @@ def assignDetectorToPrediction(cameras, detector, predictions, frames, visor):
                     visor.drawText(str(score), camera, detection.getCenter(), color=prediction.getColor())
 
                 if score == 7 and f_iou(detection, bboxes[camera]) > 0.2:
+                    # Use only if best score and not very different (iuo)
                     if best_detection is None:
                         best_detection = detection
 
@@ -255,16 +263,16 @@ def estimateFromPredictions(predictions, detector, cameras, frames, visor):
     if detector is not None:
         # for each bbox
         for camera in cameras:
-            for bbox in detector[camera]:
+            for bbox, _ in detector[camera]:
                 group = {camera: bbox}
                 cylinder = to3dCylinder(camera, bbox)
                 # find other similar in other cameras
                 for camera2 in cameras:
                     if camera == camera2: continue
-                    for bbox2 in detector[camera2][:]:
+                    for bbox2, _mask in detector[camera2][:]:
                         if f_similarCylinders(cylinder, to3dCylinder(camera2, bbox2)):
                             group[camera2] = bbox2
-                            detector[camera2].remove(bbox2)
+                            detector[camera2].remove((bbox2,_mask))
 
                 # create new tracker
                 tracker = CylinderTracker(cameras)
@@ -359,11 +367,11 @@ def evalMultiTracker(groupDataset, display=True, DETECTOR_FIRED=5):
         if frame_index % DETECTOR_FIRED == 0:
             detector_results = {}
             for dataset in groupDataset:
-                results = detector.evaluateImage(frames[dataset], str(dataset) + " - " + str(frame_index))
-                detector_results[dataset] = [Bbox.XmYmXMYM(result[0], result[1], result[2], result[3]) for result in results]
+                data = detector.evaluateImage(frames[dataset], str(dataset) + " - " + str(frame_index))
+                detector_results[dataset] = [(Bbox.XmYmXMYM(result[0], result[1], result[2], result[3]), mask) for result, mask in data]
 
                 # show detections
-                for bbox in detector_results[dataset]:
+                for bbox, _ in detector_results[dataset]:
                     visor.drawBbox(bbox, dataset, color=C_GREY)
         else:
             detector_results = None

@@ -30,7 +30,7 @@ def evaluateMetrics(dataset, tracker):
 
 
 def evaluateMetricsGroup(groupDataset, tracker, toFile=None, detector=5):
-    n_frames, n_ids, data = evalMultiTracker(groupDataset, False, detector)
+    n_frames, n_ids, data = evalMultiTracker(groupDataset, False, detector)  # Run algorithm
 
     metricsAll = {}
 

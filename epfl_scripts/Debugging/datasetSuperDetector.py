@@ -6,7 +6,8 @@ Internal debugging utility, no real usage.
 
 import cv2  # read video file
 
-from epfl_scripts.groundTruthParser import getDatasets, getSuperDetector, getVideo
+from epfl_scripts.cachedDetectron import getSuperDetector
+from epfl_scripts.groundTruthParser import getDatasets, getVideo
 
 TRAIL_LENGTH = 50
 
@@ -43,12 +44,14 @@ def showOne(dataset):
         if disp_trail:
             trail_length = min(TRAIL_LENGTH, frame_index)
             for t in range(trail_length, 0, -1):
-                for xmin, ymin, xmax, ymax in data[frame_index - t]:
+                for (xmin, ymin, xmax, ymax), mask in data[frame_index - t]:
+                    # TODO: display mask too
                     cv2.circle(frame_display, ((xmin + xmax) / 2, (ymin + ymax) / 2), 1, (255, 255, 255), 2)
 
         if disp_detection:
             # draw rectangles
-            for xmin, ymin, xmax, ymax in data[frame_index]:
+            for (xmin, ymin, xmax, ymax), mask in data[frame_index]:
+                    # TODO: display mask too
                 cv2.rectangle(frame_display, (xmin, ymin), (xmax, ymax), (255, 255, 255), 1)
 
         cv2.imshow(windowlabel, frame_display)

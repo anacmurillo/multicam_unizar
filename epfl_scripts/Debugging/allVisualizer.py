@@ -10,7 +10,8 @@ import cv2  # read video file
 
 from epfl_scripts.Utilities.colorUtility import getColors, blendColors, C_WHITE, C_BLACK
 from epfl_scripts.Utilities.geometry2D_utils import f_iou, Bbox, f_intersection
-from epfl_scripts.groundTruthParser import getDatasets, getSuperDetector, getVideo, getGroupedDatasets, getGroundTruth
+from epfl_scripts.cachedDetectron import getSuperDetector
+from epfl_scripts.groundTruthParser import getDatasets, getVideo, getGroupedDatasets, getGroundTruth
 from epfl_scripts.multiCameraTrackerV2 import evalMultiTracker
 
 
@@ -81,7 +82,8 @@ def showOne(groupDataset, tracker, filename=None, flags="0000"):
 
             # draw detector
             if disp_detector:
-                for xmin, ymin, xmax, ymax in data_detector[dataset][frame_index]:
+                for (xmin, ymin, xmax, ymax), mask in data_detector[dataset][frame_index]:
+                    # TODO: display mask too
                     cv2.rectangle(frame_display, (xmin, ymin), (xmax, ymax), C_WHITE, 1)
 
             # draw tracker

@@ -19,7 +19,6 @@ basefolder = "/media/datos/abel/epfl/dataset/"
 
 groundtruth_folder = basefolder + "merayxu-multiview-object-tracking-dataset-d2990e227c57/EPFL/"
 video_folder = basefolder + "frames/"
-superDetector_folder = basefolder + "superDetector/"
 
 
 # download the files here: https://drive.google.com/open?id=1K02knTTWmCn00eXp2tRbwNr7BGLSsueM
@@ -98,27 +97,6 @@ def getGroundTruth(dataset):
         data.setdefault(int(frame_number), {})[int(track_id)] = [int(xmin), int(ymin), int(xmax), int(ymax), lost == '1', occluded == '1', generated == '1', label]
         track_ids.add(int(track_id))
     return track_ids, data
-
-
-def getSuperDetector(dataset):
-    """
-    Return the detections from the "super-detector" parsing
-    :param dataset: the dataset to use
-    :return: dictionary with the detections where:
-        keys: each of the frames ids (from 0 inclusive to video.FRAME_COUNT exclusive)
-        values: list with each detection (can be empty) in the format [xmin, ymin, xmax, ymax]
-    """
-    path = superDetector_folder + dataset + ".txt"
-
-    # create data for each frame
-    reader = csv.reader(open(path), delimiter=' ')
-    data = {}
-    for frame_number, xmin, ymin, xmax, ymax in reader:
-        data.setdefault(int(frame_number), []).append([s2f2i(xmin), s2f2i(ymin), s2f2i(xmax), s2f2i(ymax)])
-    for i in range(int(getVideo(dataset).get(cv2.CAP_PROP_FRAME_COUNT))):
-        if i not in data:
-            data[i] = []
-    return data
 
 
 def getCalibrationMatrix(dataset):
