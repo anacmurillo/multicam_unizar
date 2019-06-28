@@ -5,6 +5,7 @@ base code from https://docs.opencv.org/3.4.0/db/df8/tutorial_py_meanshift.html
 import cv2
 import numpy as np
 
+from epfl_scripts.Utilities import KEY
 from epfl_scripts.groundTruthParser import getVideo
 
 
@@ -112,7 +113,7 @@ def evaluateMeanShift(dataset):
             img2 = cv2.rectangle(frame, (x, y), (x + w, y + h), 255, 2)
             cv2.imshow('img2', img2)
             k = cv2.waitKey(60) & 0xff
-            if k == 27:
+            if k == KEY.ESC:
                 break
             else:
                 cv2.imwrite(chr(k) + ".jpg", img2)
@@ -154,7 +155,7 @@ def evaluateCAMshift(dataset):
             img2 = cv2.polylines(frame, [pts], True, 255, 2)
             cv2.imshow('img2', img2)
             k = cv2.waitKey(60) & 0xff
-            if k == 27:
+            if k == KEY.ESC:
                 break
             else:
                 cv2.imwrite(chr(k) + ".jpg", img2)

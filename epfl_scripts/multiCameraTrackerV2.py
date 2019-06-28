@@ -4,6 +4,8 @@ from __future__ import print_function
 from __future__ import print_function
 from __future__ import print_function
 
+from epfl_scripts.Utilities import KEY
+
 """
 Implementation of the algorithm. Main file.
 TFM version, probably broken.
@@ -585,7 +587,7 @@ def evalMultiTracker(groupDataset, tracker_type, display=True, DETECTOR_FIRED=5)
             cv2.imshow(WIN_NAME + "_overview", frame)
             # /end display overview
 
-            if cv2.waitKey(1) & 0xff == 27:
+            if cv2.waitKey(1) & 0xff == KEY.ESC:
                 break
         else:
             # show progress

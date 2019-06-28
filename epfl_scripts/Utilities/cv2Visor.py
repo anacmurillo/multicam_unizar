@@ -23,9 +23,12 @@ import cv2
 from cv2 import *
 # noinspection PyUnresolvedReferences
 from cv2 import __version__
-# globals().update(importlib.import_module('cv2').__dict__)
 
 # CONF
+from epfl_scripts.Utilities import KEY
+
+# globals().update(importlib.import_module('cv2').__dict__)
+
 __MAXSAVED = 50
 __PAUSEKEY = 32  # space
 __BLEND = 0.4
@@ -190,7 +193,7 @@ def __pauseDisplay():
                 cv2.imshow(winname, __frames[winname][indexes[winname]])
                 indexes[winname] -= 2  # for faster fastforward
 
-        if cv2.waitKey(1) & 0xff == 27:
+        if cv2.waitKey(1) & 0xff == KEY.ESC:
             # ESC, stop fastforward
             break
 
@@ -222,7 +225,7 @@ if __name__ == "__main__":
                 cv2.imshow("TEST2", frame)
 
             k = cv2.waitKey(100) & 0xff
-            if k == 27:
+            if k == KEY.ESC:
                 break
             elif k != 255:
                 print k

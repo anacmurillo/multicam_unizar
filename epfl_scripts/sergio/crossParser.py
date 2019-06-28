@@ -12,6 +12,7 @@ from __future__ import print_function
 import numpy as np
 
 import epfl_scripts.Utilities.cv2Visor as cv2
+from epfl_scripts.Utilities import KEY
 from epfl_scripts.groundTruthParser import getGroundTruth, getVideo, getGroupedDatasets
 
 
@@ -127,21 +128,21 @@ def displayCross(groupedDataset, cross):
         k = cv2.waitKey(0) & 0xff
 
         # parse key
-        if k == 27:  # ESC
+        if k == KEY.ESC:
             break
-        elif k == 83 or k == 100:  # right, d
+        elif k == KEY.RIGHT_ARROW or k == KEY.D:
             index += 1
-        elif k == 81 or k == 97:  # left, a
+        elif k == KEY.LEFT_ARROW or k == KEY.A:
             index += -1
-        elif k == 82 or k == 119:  # up, w
+        elif k == KEY.UP_ARROW or k == KEY.W:
             index += 10
-        elif k == 84 or k == 115:  # down, s
+        elif k == KEY.DOWN_ARROW or k == KEY.S:
             index += -10
-        elif k == 80:  # start
+        elif k == KEY.START:
             index = 0
-        elif k == 87:  # end
+        elif k == KEY.END:
             index = total - 1
-        elif k != 255:  # other
+        elif k != KEY.NONE:
             print("pressed", k)
 
         index = sorted([0, index, total - 1])[1]

@@ -12,6 +12,7 @@ import sys
 
 # import cv2
 import epfl_scripts.Utilities.cv2Visor as cv2
+from epfl_scripts.Utilities import KEY
 from epfl_scripts.Utilities.colorUtility import getColors
 from epfl_scripts.groundTruthParser import getGroundTruth, getVideo
 from epfl_scripts.trackers.myTracker import MyTracker
@@ -180,7 +181,7 @@ def _evalTracker(dataset, tracker_type, display=True):
 
             # Exit if ESC pressed
             k = cv2.waitKey(1) & 0xff
-            if k == 27:
+            if k == KEY.ESC:
                 frame_index += 1
                 break
         else:

@@ -6,6 +6,7 @@ Internal debugging utility, no real usage.
 
 import cv2  # read video file
 
+from epfl_scripts.Utilities import KEY
 from epfl_scripts.Utilities.colorUtility import C_WHITE
 from epfl_scripts.cachedDetectron import getSuperDetector
 from epfl_scripts.groundTruthParser import getDatasets, getVideo
@@ -57,25 +58,25 @@ def showOne(dataset):
 
         cv2.imshow(windowlabel, frame_display)
         k = cv2.waitKey(0) & 0xff
-        if k == 27:
+        if k == KEY.ESC:
             break
-        elif k == 83 or k == 100:
+        elif k == KEY.RIGHT_ARROW or k == KEY.D:
             frame_index += 1
-        elif k == 81 or k == 97:
+        elif k == KEY.LEFT_ARROW or k == KEY.A:
             frame_index -= 1
-        elif k == 82 or k == 119:
+        elif k == KEY.UP_ARROW or k == KEY.W:
             frame_index += 10
-        elif k == 84 or k == 115:
+        elif k == KEY.DOWN_ARROW or k == KEY.S:
             frame_index -= 10
-        elif k == 80:
+        elif k == KEY.START:
             frame_index = 0
-        elif k == 87:
+        elif k == KEY.END:
             frame_index = len(images) - 1
-        elif 49 <= k <= 57:
+        elif KEY.n1 <= k <= KEY.n9:
             frame_index = int(len(images) * (k - 48) / 10.)
-        elif k == 113:
+        elif k == KEY.Q:
             disp_trail = not disp_trail
-        elif k == 101:
+        elif k == KEY.E:
             disp_detection = not disp_detection
         else:
             print "pressed", k
