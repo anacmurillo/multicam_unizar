@@ -1,3 +1,8 @@
+"""
+Class that extracts the drawing related functionality of a multivisor (multiple cameras and a floor).
+Provides functions to draw text, draw rectangles, etc.
+(like a wrapper)
+"""
 import numpy as np
 
 # import cv2

@@ -1,3 +1,7 @@
+"""
+Evaluate the datasets and creates a file with the found crosses.
+A cross is defined as 'frame before/while/after/end someone crosses behind another one' in any camera
+"""
 # import cv2
 import epfl_scripts.Utilities.cv2Visor as cv2
 from epfl_scripts.Utilities.colorUtility import getColors, blendColors

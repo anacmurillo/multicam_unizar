@@ -1,11 +1,26 @@
+"""
+Substitutes the detectron by using a precached version on files.
+
+Normal usage:
+
+1) Run this file if necessary to create the cached files (will take a while)
+
+2) Use the CachedDetectron class instead of the normal Detectron one:
+
+detectron = CachedDetectron() if WANT_TO_USE_CACHED_DETECTRON else Detectron()
+
+...
+
+detectron.evaluateImage( _ , dataset + " - " + str(frameIndex) )
+
+
+"""
+
 import errno
 import os
 import pickle
 
 import cv2
-
-from detectron_wrapper import Detectron
-from epfl_scripts.groundTruthParser import getVideo, getDatasets
 
 basefolder = "/media/datos/abel/epfl/dataset/"
 
@@ -112,6 +127,9 @@ def createCachedDataset(dataset, detectron):
 
 
 if __name__ == "__main__":
+    from detectron_wrapper import Detectron
+    from epfl_scripts.groundTruthParser import getVideo, getDatasets
+
     # initialize the detector
     detectron = Detectron()
 

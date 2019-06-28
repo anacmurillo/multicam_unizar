@@ -4,6 +4,7 @@ import os
 import sys
 
 import epfl_scripts.sergio.Functions_DatasetLaboratory as fdl
+from epfl_scripts.Utilities import KEY
 from epfl_scripts.Utilities.MultiCameraVisor import MultiCameraVisor, NoVisor
 from epfl_scripts.Utilities.cache import cache_function
 from epfl_scripts.Utilities.colorUtility import getColors, C_GREY, C_WHITE, C_RED, blendColors, C_BLACK
@@ -405,7 +406,7 @@ def evalMultiTracker(groupDataset, display=True, DETECTOR_FIRED=5):
 
         # show and wait
         visor.showAll()
-        if visor.getKey() & 0xff == 27:
+        if visor.getKey() & 0xff == KEY.ESC:
             break
 
         if not display:

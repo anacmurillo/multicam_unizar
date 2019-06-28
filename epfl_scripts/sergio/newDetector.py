@@ -1,7 +1,10 @@
+"""
+Evaluates the datasets and creates a file with the frames where each person entered the scene.
+"""
 # import cv2
 import epfl_scripts.Utilities.cv2Visor as cv2
-from epfl_scripts.Utilities.colorUtility import getColors, blendColors
-from epfl_scripts.Utilities.geometry2D_utils import Bbox, f_area, f_intersection
+from epfl_scripts.Utilities.colorUtility import getColors
+from epfl_scripts.Utilities.geometry2D_utils import Bbox
 from epfl_scripts.groundTruthParser import getGroundTruth, getVideo, getGroupedDatasets
 
 

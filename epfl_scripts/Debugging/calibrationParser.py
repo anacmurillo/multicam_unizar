@@ -8,6 +8,7 @@ import sys
 
 import cv2
 
+from epfl_scripts.Utilities import KEY
 from epfl_scripts.Utilities.MultiCameraVisor import MultiCameraVisor
 from epfl_scripts.Utilities.colorUtility import C_GREY, C_GREEN, C_BLUE, C_RED
 from epfl_scripts.Utilities.geometry2D_utils import f_multiply, Point2D, Bbox, f_add, f_subtract
@@ -119,15 +120,15 @@ class CalibrationParser:
             self.updateViews()
 
             k = self.Visor.getKey(0)
-            if k == 27:
+            if k == KEY.ESC:
                 break
-            elif k == 83 or k == 100:  # right || d
+            elif k == KEY.RIGHT_ARROW or k == KEY.D:
                 pass
-            elif k == 81 or k == 97:  # left || a
+            elif k == KEY.LEFT_ARROW or k == KEY.A:
                 pass
-            elif k == 82 or k == 119:  # up || w
+            elif k == KEY.UP_ARROW or k == KEY.W:
                 pass
-            elif k == 84 or k == 115:  # down || s
+            elif k == KEY.DOWN_ARROW or k == KEY.S:
                 pass
 
     def clickEvent(self, event, x, y, flags, dataset):

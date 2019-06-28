@@ -207,10 +207,11 @@ def Calc_Histogram_Simple_Norm(image, mascara, boolean):
     g_copy = np.zeros((256, 1), dtype=np.float32)
     r_copy = np.zeros((256, 1), dtype=np.float32)
 
-    for idx, bit in enumerate(zip(np.nditer(hist_blue), np.nditer(hist_green), np.nditer(hist_red))):
-        b_copy[idx, 0] = int(bit[0]) / float(module)
-        g_copy[idx, 0] = int(bit[1]) / float(module)
-        r_copy[idx, 0] = int(bit[2]) / float(module)
+    if module != 0:
+        for idx, bit in enumerate(zip(np.nditer(hist_blue), np.nditer(hist_green), np.nditer(hist_red))):
+            b_copy[idx, 0] = int(bit[0]) / float(module)
+            g_copy[idx, 0] = int(bit[1]) / float(module)
+            r_copy[idx, 0] = int(bit[2]) / float(module)
 
     return b_copy, g_copy, r_copy  # histograms float32 y sumatorio = 1
 

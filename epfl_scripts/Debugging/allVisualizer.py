@@ -8,6 +8,7 @@ import sys
 
 import cv2  # read video file
 
+from epfl_scripts.Utilities import KEY
 from epfl_scripts.Utilities.colorUtility import getColors, blendColors, C_WHITE, C_BLACK
 from epfl_scripts.Utilities.geometry2D_utils import f_iou, Bbox, f_intersection
 from epfl_scripts.cachedDetectron import getSuperDetector
@@ -83,7 +84,8 @@ def showOne(groupDataset, tracker, filename=None, flags="0000"):
             # draw detector
             if disp_detector:
                 for (xmin, ymin, xmax, ymax), mask in data_detector[dataset][frame_index]:
-                    # TODO: display mask too
+                    contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE, offset=(int(round(xmin)), int(round(ymin))))
+                    cv2.drawContours(frame_display, contours, -1, C_WHITE, 1)
                     cv2.rectangle(frame_display, (xmin, ymin), (xmax, ymax), C_WHITE, 1)
 
             # draw tracker
@@ -138,30 +140,30 @@ def showOne(groupDataset, tracker, filename=None, flags="0000"):
                 break
         else:
             k = cv2.waitKey(0) & 0xff
-            if k == 27:
+            if k == KEY.ESC:
                 break
-            elif k == 83 or k == 100:  # right || d
+            elif k == KEY.RIGHT_ARROW or k == KEY.D:
                 frame_index += 1
-            elif k == 81 or k == 97:  # left || a
+            elif k == KEY.LEFT_ARROW or k == KEY.A:
                 frame_index -= 1
-            elif k == 82 or k == 119:  # up || w
+            elif k == KEY.UP_ARROW or k == KEY.W:
                 frame_index += 10
-            elif k == 84 or k == 115:  # down || s
+            elif k == KEY.DOWN_ARROW or k == KEY.S:
                 frame_index -= 10
-            elif k == 80:  # start
+            elif k == KEY.START:
                 frame_index = 0
-            elif k == 87:  # end
+            elif k == KEY.END:
                 frame_index = nFrames - 1
-            elif 49 <= k <= 57:  # 1-9
+            elif KEY.n1 <= k <= KEY.n9:
                 frame_index = int(nFrames * (k - 48) / 10.)
 
-            elif k == 190:  # F1
+            elif k == KEY.F1:
                 disp_detector = not disp_detector
-            elif k == 191:  # F2
+            elif k == KEY.F2:
                 disp_tracker = not disp_tracker
-            elif k == 192:  # F3
+            elif k == KEY.F3:
                 disp_groundtruth = not disp_groundtruth
-            elif k == 193:  # F4
+            elif k == KEY.F4:
                 disp_areas = not disp_areas
 
             else:
@@ -211,7 +213,7 @@ if __name__ == '__main__':
 
     tracker = 'KCF'
     dataset = getGroupedDatasets()["Laboratory/6p"]
-    #dataset = ["Laboratory/6p-c3"]
+    # dataset = ["Laboratory/6p-c3"]
     # dataset = ["Campus/campus7-c1"]
     showOne(dataset, tracker)
 

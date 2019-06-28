@@ -1,6 +1,5 @@
 """
- Color utilities
-
+Color utilities and constants
 """
 
 import colorsys  # generate colors

@@ -5,7 +5,8 @@ from __future__ import print_function
 from __future__ import print_function
 
 """
-Implementation of the algorithm. Main file
+Implementation of the algorithm. Main file.
+TFM version, probably broken.
 """
 
 try:

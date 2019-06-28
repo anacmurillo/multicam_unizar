@@ -1,3 +1,6 @@
+"""
+Utility to extract the frames from the videos. Probably broken now.
+"""
 import os
 
 import cv2

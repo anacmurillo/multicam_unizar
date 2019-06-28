@@ -1,4 +1,7 @@
 # vim: expandtab:ts=4:sw=4
+"""
+The kalman filter for the cyylinder tracker. Adapted from deep_sort tracker git.
+"""
 import numpy as np
 import scipy.linalg
 

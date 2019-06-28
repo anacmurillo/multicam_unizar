@@ -1,3 +1,7 @@
+"""
+Utility to rename the detector files because they were saved incorrectly.
+One time use only, no usage now.
+"""
 import csv
 
 import cv2

@@ -6,6 +6,7 @@ Internal debugging utility, no real usage.
 
 import cv2  # read video file
 
+from epfl_scripts.Utilities.colorUtility import C_WHITE
 from epfl_scripts.cachedDetectron import getSuperDetector
 from epfl_scripts.groundTruthParser import getDatasets, getVideo
 
@@ -45,14 +46,14 @@ def showOne(dataset):
             trail_length = min(TRAIL_LENGTH, frame_index)
             for t in range(trail_length, 0, -1):
                 for (xmin, ymin, xmax, ymax), mask in data[frame_index - t]:
-                    # TODO: display mask too
-                    cv2.circle(frame_display, ((xmin + xmax) / 2, (ymin + ymax) / 2), 1, (255, 255, 255), 2)
+                    cv2.circle(frame_display, (int(round((xmin + xmax) / 2)), int(round((ymin + ymax) / 2))), 1, (255, 255, 255), 2)
 
         if disp_detection:
             # draw rectangles
             for (xmin, ymin, xmax, ymax), mask in data[frame_index]:
-                    # TODO: display mask too
-                cv2.rectangle(frame_display, (xmin, ymin), (xmax, ymax), (255, 255, 255), 1)
+                contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE, offset=(int(round(xmin)), int(round(ymin))))
+                cv2.drawContours(frame_display, contours, -1, C_WHITE, 1)
+                cv2.rectangle(frame_display, (xmin, ymin), (xmax, ymax), C_WHITE, 1)
 
         cv2.imshow(windowlabel, frame_display)
         k = cv2.waitKey(0) & 0xff
